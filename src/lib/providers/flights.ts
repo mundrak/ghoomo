@@ -1,9 +1,11 @@
 import { skyscannerUrl, tripDates } from "../links";
+import { planTravel } from "../travel";
 import type { Destination, FlightQuote, TripInput } from "../types";
 
-// Live fares come from the Travelpayouts (Aviasales) Data API: free with a
-// Travelpayouts affiliate account, returns recently seen fares in INR and a
-// bookable link. Without a token we fall back to the destination's estimate.
+// First decides how to get there (train, bus or flight; see lib/travel.ts). For flights,
+// recent fares come from the Travelpayouts (Aviasales) Data API: free with a Travelpayouts
+// affiliate account, returns recently seen fares in INR and a bookable link. Without a
+// token, or for trains and buses, the estimate from lib/travel.ts stands.
 
 interface TravelpayoutsFare {
   price: number;
@@ -14,14 +16,10 @@ interface TravelpayoutsFare {
   link: string;
 }
 
-export async function quoteFlight(input: TripInput, d: Destination): Promise<FlightQuote> {
-  const fallback: FlightQuote = {
-    price: input.origin === d.airport ? 0 : d.flightEstimate,
-    source: "estimate",
-    bookingUrl: skyscannerUrl(input, d),
-  };
+export async function quoteTravel(input: TripInput, d: Destination): Promise<FlightQuote> {
+  const fallback = planTravel(input, d, skyscannerUrl(input, d));
   const token = process.env.TRAVELPAYOUTS_TOKEN;
-  if (!token || input.origin === d.airport) return fallback;
+  if (fallback.mode !== "flight" || !token || input.origin === d.airport) return fallback;
 
   const { checkin, checkout } = tripDates(input);
   const params = new URLSearchParams({
@@ -51,6 +49,7 @@ export async function quoteFlight(input: TripInput, d: Destination): Promise<Fli
 
     const marker = process.env.TRAVELPAYOUTS_MARKER;
     return {
+      ...fallback,
       price: fare.price,
       source: "live",
       airline: fare.airline,

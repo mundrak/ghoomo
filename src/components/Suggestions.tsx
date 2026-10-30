@@ -3,15 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, sumBudget } from "@/lib/budget";
-import type { Destination, Suggestion, TripInput } from "@/lib/types";
-import { Dot, LocalName, PlaneIcon, PriceSource, primaryButton, RoadIcon, Spinner, SplitBar } from "./ui";
+import { travelMode } from "@/lib/travel";
+import type { FlightQuote, Suggestion, TripInput } from "@/lib/types";
+import { Dot, LocalName, ModeIcon, PriceSource, primaryButton, Spinner, SplitBar } from "./ui";
 
 const FIRST_ROWS = 8;
 
-/** How you get there, in words. Today ghoomo only prices flights, plus the onward leg some places need. */
-export function gettingThere(input: TripInput, d: Destination) {
-  if (input.origin === d.airport) return { label: "You're already there", road: true };
-  return d.arrivalNote ? { label: "Flight, then onward", road: false } : { label: "Flight", road: false };
+/** How you get there, in words and as an icon. */
+export function gettingThere(q: FlightQuote) {
+  const mode = travelMode(q);
+  return { mode, label: q.label ?? (mode === "flight" ? "Flight" : "Getting there") };
 }
 
 function statusFor(spare: number) {
@@ -106,7 +107,7 @@ export function Suggestions({
         {visible.map((s) => {
           const d = s.destination;
           const status = statusFor(budget - s.cost.total);
-          const via = gettingThere(input, d);
+          const via = gettingThere(s.flight);
           const isOpen = open === d.id;
           return (
             <li key={d.id} className="border-b border-board-line last:border-b-0">
@@ -125,7 +126,7 @@ export function Suggestions({
                   {d.international && d.country !== d.name && <span className="text-sm text-board-soft">{d.country}</span>}
                 </span>
                 <span className={`order-3 flex items-center gap-2 text-[15px] text-[#d6dde7] md:order-none ${status.fits ? "" : "opacity-60"}`}>
-                  {via.road ? <RoadIcon /> : <PlaneIcon />}
+                  <ModeIcon mode={via.mode} className="shrink-0" />
                   {via.label}
                 </span>
                 <span className={`text-right text-lg font-bold tabular-nums md:text-left ${status.fits ? "" : "opacity-60"}`}>{inr(s.cost.total)}</span>
@@ -178,7 +179,7 @@ function Pass({
 }) {
   const d = s.destination;
   const spare = budget - s.cost.total;
-  const via = gettingThere(input, d);
+  const via = gettingThere(s.flight);
   const leaving = new Date(`${input.startDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
   // The budget line is already on the board, so keep the other reasons.
   const reasons = s.reasons.filter((r) => !r.startsWith("Fits your budget"));
@@ -189,9 +190,9 @@ function Pass({
         <div className="font-wide flex items-center gap-3 text-xl font-extrabold sm:text-2xl">
           <span>{city}</span>
           <span className="h-0 max-w-28 flex-1 border-t-2 border-dashed border-soft/60" />
-          {via.road ? <RoadIcon className="shrink-0 text-soft" /> : <PlaneIcon className="shrink-0 text-soft" />}
+          <ModeIcon mode={via.mode} className="shrink-0 text-soft" />
           <span className="h-0 max-w-28 flex-1 border-t-2 border-dashed border-soft/60" />
-          <span>{d.name}</span>
+          <span>{via.mode === "train" || via.mode === "bus" ? (d.ground?.to ?? d.name) : d.name}</span>
         </div>
         <dl className="mt-3 flex flex-wrap gap-x-7 gap-y-2 text-sm">
           {[
@@ -214,7 +215,7 @@ function Pass({
               <li key={c} className="inline-flex items-center gap-1.5">
                 <Dot category={c} />
                 {CATEGORY_LABELS[c]} <span className="font-semibold tabular-nums text-ink">{inr(s.cost[c])}</span>
-                {c === "flights" && <PriceSource kind="flight" live={s.flight.source === "live"} />}
+                {c === "flights" && via.mode !== "none" && <PriceSource kind="travel" live={s.flight.source === "live"} />}
               </li>
             ))}
           </ul>
@@ -227,10 +228,16 @@ function Pass({
               {r}
             </li>
           ))}
-          {d.arrivalNote && (
+          {via.mode === "flight" && d.arrivalNote && (
             <li className="flex gap-2.5">
               <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
               {d.arrivalNote}
+            </li>
+          )}
+          {(via.mode === "train" || via.mode === "bus") && d.ground && d.ground.to !== d.name && (
+            <li className="flex gap-2.5">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
+              The {via.mode} goes to {d.ground.to}. Get a cab or local transport on to {d.name}.
             </li>
           )}
           {d.international && (

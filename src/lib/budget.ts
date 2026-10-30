@@ -12,24 +12,25 @@ import type {
 export const CATEGORIES = ["flights", "stay", "food", "activities", "transport"] as const;
 
 export const CATEGORY_LABELS: Record<keyof CategoryBudget, string> = {
-  flights: "Flights",
+  flights: "Getting there",
   stay: "Stay",
   food: "Food",
   activities: "Experiences",
   transport: "Local transport",
 };
 
-// Per-person defaults for each tier: a return flight plus per-day spend.
+// Per-person defaults for each tier: getting there and back, plus per-day spend.
+// Budget assumes a train or bus for most trips (a sleeper return is usually ₹1,500–4,000), with room for a cheap flight.
 const TIER_PRESETS: Record<Tier, { flights: number; perDay: Omit<CategoryBudget, "flights"> }> = {
-  budget: { flights: 15000, perDay: { stay: 900, food: 800, activities: 700, transport: 500 } },
-  comfort: { flights: 25000, perDay: { stay: 2800, food: 1700, activities: 1500, transport: 1200 } },
-  luxury: { flights: 45000, perDay: { stay: 9000, food: 4500, activities: 4000, transport: 3500 } },
+  budget: { flights: 5000, perDay: { stay: 900, food: 800, activities: 700, transport: 500 } },
+  comfort: { flights: 14000, perDay: { stay: 2800, food: 1700, activities: 1500, transport: 1200 } },
+  luxury: { flights: 35000, perDay: { stay: 9000, food: 4500, activities: 4000, transport: 3500 } },
 };
 
 export const TIER_INFO: Record<Tier, { label: string; blurb: string }> = {
-  budget: { label: "Budget", blurb: "Hostels, street food, shared cabs, free sights" },
-  comfort: { label: "Comfort", blurb: "Nice hotels or Airbnbs, a few splurges" },
-  luxury: { label: "Luxury", blurb: "Premium stays, fine dining, private tours" },
+  budget: { label: "Budget", blurb: "Sleeper trains and buses, hostels, street food, free sights" },
+  comfort: { label: "Comfort", blurb: "AC trains or short flights, nice hotels or Airbnbs, a few splurges" },
+  luxury: { label: "Luxury", blurb: "Flights, premium stays, fine dining, private tours" },
 };
 
 const roundTo = (n: number, step = 100) => Math.round(n / step) * step;

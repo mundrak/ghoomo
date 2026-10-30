@@ -5,7 +5,8 @@ import { ORIGIN_AIRPORTS } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, TIER_INFO } from "@/lib/budget";
 import type { Itinerary } from "@/lib/itinerary";
 import type { CategoryBudget, Destination, FlightQuote, StayQuote, TripInput } from "@/lib/types";
-import { Dot, inputClass, LocalName, Meter, PlaneIcon, PriceSource, primaryButton, Spinner } from "./ui";
+import { travelMode } from "@/lib/travel";
+import { Dot, inputClass, LocalName, Meter, ModeIcon, PriceSource, primaryButton, Spinner } from "./ui";
 
 const QUICK_CHANGES = ["Make it cheaper", "More nightlife", "More veg food spots", "Slower pace", "Add one splurge"];
 const MAX_CHANGE_CHARS = 300;
@@ -51,6 +52,9 @@ export function ItineraryView({
   const budgetTotal = CATEGORIES.reduce((s, c) => s + input.budget[c], 0);
   const canEdit = meta.aiAvailable && (meta.editsLeft ?? 1) > 0;
   const city = ORIGIN_AIRPORTS.find((a) => a.code === input.origin)?.city ?? input.origin;
+  const mode = travelMode(flight);
+  const ground = mode === "train" || mode === "bus";
+  const travelCta = { flight: "Check flights", train: "Check trains on IRCTC", bus: "Find buses on redBus", none: "" }[mode];
   const dateOf = (offset: number) => {
     const day = new Date(`${input.startDate}T00:00:00`);
     day.setDate(day.getDate() + offset);
@@ -95,23 +99,31 @@ export function ItineraryView({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            <a href={flight.bookingUrl} target="_blank" rel="noopener noreferrer" className={`${panel} group block p-5 transition hover:border-ink`}>
+            <a
+              href={mode === "none" ? undefined : flight.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${panel} group block p-5 transition ${mode === "none" ? "" : "hover:border-ink"}`}
+            >
               <div className="flex items-center justify-between gap-2 text-sm text-soft">
                 <span className="inline-flex items-center gap-2 font-semibold text-ink">
-                  {input.origin} <PlaneIcon className="text-soft" /> {d.airport}
+                  {ground ? city : input.origin} <ModeIcon mode={mode} className="text-soft" /> {ground ? (d.ground?.to ?? d.name) : mode === "none" ? d.name : d.airport}
                 </span>
-                <PriceSource kind="flight" live={flight.source === "live"} />
+                {mode !== "none" && <PriceSource kind="travel" live={flight.source === "live"} />}
               </div>
               <p className="mt-3">
                 <span className="text-2xl font-extrabold tabular-nums">{inr(flight.price)}</span>
                 <span className="text-sm text-soft"> per person, return</span>
               </p>
+              {flight.label && <p className="text-sm text-soft">{flight.label}</p>}
               {flight.airline && (
                 <p className="text-sm text-soft">
                   {flight.airline}, {flight.transfers ? `${flight.transfers} stop${flight.transfers > 1 ? "s" : ""}` : "direct"}
                 </p>
               )}
-              <p className="mt-4 text-sm font-semibold underline decoration-signal decoration-2 underline-offset-4 group-hover:decoration-ink">Check flights</p>
+              {travelCta && (
+                <p className="mt-4 text-sm font-semibold underline decoration-signal decoration-2 underline-offset-4 group-hover:decoration-ink">{travelCta}</p>
+              )}
             </a>
             <a href={stay.bookingUrl} target="_blank" rel="noopener noreferrer" className={`${panel} group block p-5 transition hover:border-ink`}>
               <div className="flex items-center justify-between gap-2 text-sm">
@@ -128,7 +140,12 @@ export function ItineraryView({
               </p>
             </a>
           </div>
-          {d.arrivalNote && <p className="px-1 text-[15px] text-soft">Getting there: {d.arrivalNote}</p>}
+          {mode === "flight" && d.arrivalNote && <p className="px-1 text-[15px] text-soft">Getting there: {d.arrivalNote}</p>}
+          {ground && d.ground && d.ground.to !== d.name && (
+            <p className="px-1 text-[15px] text-soft">
+              Getting there: the {mode} goes to {d.ground.to}. Get a cab or local transport on to {d.name}.
+            </p>
+          )}
 
           <ol className={`${panel} divide-y-[1.5px] divide-line`}>
             {itinerary.days.map((day) => {
