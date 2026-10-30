@@ -66,14 +66,38 @@ function memoryStore(): Store {
   };
 }
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-const hasRedis = Boolean(redisUrl && redisToken);
+/**
+ * Finds the Redis REST settings. Upstash names them UPSTASH_REDIS_REST_URL / _TOKEN; Vercel's
+ * Upstash integration names them <PREFIX>_REST_API_URL / _TOKEN, where the prefix is whatever was
+ * typed when connecting (KV by default, sometimes STORAGE). Accept any prefix rather than make
+ * someone rename variables.
+ */
+export function findRedisSettings(env: NodeJS.ProcessEnv) {
+  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+    return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN, source: "UPSTASH_REDIS_REST_*" };
+  }
+  const prefixes = Object.keys(env)
+    .filter((k) => k.endsWith("_REST_API_URL") && env[k])
+    .map((k) => k.slice(0, -"_REST_API_URL".length))
+    .sort((a, b) => (a === "KV" ? -1 : b === "KV" ? 1 : a.localeCompare(b)));
+  for (const prefix of prefixes) {
+    const url = env[`${prefix}_REST_API_URL`];
+    const token = env[`${prefix}_REST_API_TOKEN`]; // the full token, not the _READ_ONLY_ one
+    if (url && token) return { url, token, source: `${prefix}_REST_API_*` };
+  }
+  return null;
+}
+
+const redis = findRedisSettings(process.env);
+const hasRedis = Boolean(redis);
+
+/** Which variables the Redis connection came from, for the status check. Never the values. */
+export const redisSource = redis?.source ?? null;
 
 // Next.js bundles each route separately, so a plain module-level map would give every route its
 // own memory. Keep one on globalThis so all routes in this process share it.
 const shared = globalThis as typeof globalThis & { __ghoomoMemory?: Store };
-export const store: Store = hasRedis ? redisStore(redisUrl!, redisToken!) : (shared.__ghoomoMemory ??= memoryStore());
+export const store: Store = redis ? redisStore(redis.url, redis.token) : (shared.__ghoomoMemory ??= memoryStore());
 
 /** True when data will still be there for the next request: Redis is set up, or this is local development. */
 export const storageAvailable = hasRedis || process.env.NODE_ENV !== "production";

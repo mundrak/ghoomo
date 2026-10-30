@@ -47,6 +47,8 @@ All limits are environment variables (see `.env.example`). For them to hold on V
 
 Redis also switches on **saved trips** (share links like `/?trip=…`) and **group check-in** (`/?group=…`). Without it, both stay hidden and the plan page offers a WhatsApp share only. The home page is built ahead of time, so **redeploy after connecting Redis** for them to appear.
 
+To check what's switched on, open `/api/status` on the live site. It shows whether Redis is connected and answering, and which keys (AI, fares, hotel rates) are set, without showing any values. Any variable prefix from the Vercel integration works (`KV_`, `STORAGE_`, …).
+
 Full numbers, suggested settings and how the app can pay for itself: [docs/ECONOMICS.md](docs/ECONOMICS.md).
 
 ## Code map
