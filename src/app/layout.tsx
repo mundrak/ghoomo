@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 // Self-hosted fonts, so builds don't depend on reaching Google Fonts.
 import "@fontsource-variable/archivo/wdth.css";
 // Local-script place names. Each file covers one script and only downloads when that script is on screen.
@@ -25,6 +26,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {children}
         {/* Page views, once Web Analytics is turned on in the Vercel project. Cookie-free. */}
         <Analytics />
+        {/* Real-visitor page speed, once Speed Insights is turned on in the Vercel project. */}
+        <SpeedInsights />
       </body>
     </html>
   );
