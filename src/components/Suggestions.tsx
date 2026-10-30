@@ -2,7 +2,9 @@
 
 import { CATEGORIES, CATEGORY_LABELS, inr, sumBudget } from "@/lib/budget";
 import type { Suggestion, TripInput } from "@/lib/types";
-import { Badge, CATEGORY_STYLE, Spinner, SplitBar } from "./ui";
+import { Badge, Dot, Kicker, primaryButton, Spinner, SplitBar } from "./ui";
+
+const SWATCHES = ["bg-peach", "bg-sage", "bg-butter", "bg-mustard/70"];
 
 export function Suggestions({
   input,
@@ -17,76 +19,75 @@ export function Suggestions({
 }) {
   const budget = sumBudget(input.budget);
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-stone-900">Where {inr(budget)} per person can take you</h2>
-        <p className="text-stone-600">
+        <Kicker>
           {input.travellers} {input.travellers === 1 ? "traveller" : "travellers"} · {input.days} days · best matches first
-        </p>
+        </Kicker>
+        <h2 className="mt-2 font-display text-3xl leading-tight text-ink sm:text-4xl">Where {inr(budget)} can take you</h2>
       </div>
+
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {suggestions.map((s, i) => {
           const d = s.destination;
           const fits = s.overBudgetBy === 0;
           return (
-            <article key={d.id} className="flex flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between bg-gradient-to-br from-teal-600 to-teal-800 px-5 py-4 text-white">
-                <div className="flex items-center gap-3">
-                  <span className="text-4xl">{d.emoji}</span>
-                  <div>
-                    <h3 className="text-lg font-bold leading-tight">{d.name}</h3>
-                    <p className="text-sm text-teal-100">{d.country}</p>
-                  </div>
-                </div>
-                {i === 0 && <span className="rounded-full bg-amber-400 px-2.5 py-1 text-xs font-bold text-amber-950">Top pick</span>}
+            <article
+              key={d.id}
+              className="relative flex flex-col overflow-hidden rounded-[24px] border-[1.5px] border-line bg-white shadow-[0_4px_18px_rgba(51,41,31,0.05)]"
+            >
+              <div className={`${SWATCHES[i % SWATCHES.length]} px-6 pb-5 pt-6`}>
+                <p className="text-sm font-semibold text-ink-soft">{d.country}</p>
+                <h3 className="mt-1 font-display text-2xl leading-tight text-ink">{d.name}</h3>
               </div>
+              {i === 0 && (
+                <span className="absolute right-4 top-4 rotate-6 rounded-full bg-orange px-3 py-0.5 font-hand text-lg text-white">top pick</span>
+              )}
 
-              <div className="flex flex-1 flex-col gap-4 p-5">
-                <div className="flex items-baseline justify-between">
-                  <div>
-                    <span className="text-2xl font-bold text-stone-900">{inr(s.cost.total)}</span>
-                    <span className="text-sm text-stone-500"> /person</span>
-                  </div>
-                  <span className={`text-sm font-medium ${fits ? "text-emerald-700" : "text-rose-600"}`}>
-                    {fits ? `${inr(budget - s.cost.total)} under budget` : `${inr(s.overBudgetBy)} over`}
+              <div className="flex flex-1 flex-col gap-5 p-6">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p>
+                    <span className="font-display text-2xl tabular-nums text-ink">{inr(s.cost.total)}</span>
+                    <span className="text-sm text-muted"> / person</span>
+                  </p>
+                  <span className={`text-sm font-semibold ${fits ? "text-ink-soft" : "text-orange"}`}>
+                    {fits ? `${inr(budget - s.cost.total)} to spare` : `${inr(s.overBudgetBy)} over`}
                   </span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <SplitBar parts={CATEGORIES.map((c) => ({ category: c, value: s.cost[c] }))} />
-                  <ul className="space-y-1 text-sm text-stone-600">
+                  <ul className="space-y-1.5 text-sm">
                     {CATEGORIES.map((c) => (
-                      <li key={c} className="flex items-center justify-between gap-2">
-                        <span>
-                          {CATEGORY_STYLE[c].icon} {CATEGORY_LABELS[c]}
+                      <li key={c} className="flex items-center justify-between gap-2 text-ink-soft">
+                        <span className="inline-flex items-center gap-2">
+                          <Dot category={c} />
+                          {CATEGORY_LABELS[c]}
+                          {c === "flights" && <Badge live={s.flight.source === "live"} />}
                         </span>
-                        <span className="text-stone-800">{inr(s.cost[c])}</span>
+                        <span className="tabular-nums text-ink">{inr(s.cost[c])}</span>
                       </li>
                     ))}
                   </ul>
-                  <div className="flex items-center gap-2 text-xs text-stone-500">
-                    Flights: <Badge live={s.flight.source === "live"} />
-                  </div>
                 </div>
 
-                <ul className="space-y-1 text-sm text-stone-700">
+                <ul className="space-y-1 border-t-[1.5px] border-line pt-4 text-sm text-ink-soft">
                   {s.reasons.slice(0, 3).map((r) => (
                     <li key={r} className="flex gap-2">
-                      <span className="text-emerald-600">✓</span>
+                      <span className="text-orange">→</span>
                       {r}
                     </li>
                   ))}
+                  <li className="flex gap-2">
+                    <span className="text-orange">→</span>
+                    Visa: {d.visa}
+                  </li>
                 </ul>
-                <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">🛂 {d.visa}</p>
 
-                <button
-                  onClick={() => onPick(s)}
-                  disabled={Boolean(busyId)}
-                  className="mt-auto flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
-                >
+                <button onClick={() => onPick(s)} disabled={Boolean(busyId)} className={`${primaryButton} mt-auto w-full`}>
                   {busyId === d.id ? (
                     <>
-                      <Spinner /> Planning your trip…
+                      <Spinner /> Planning…
                     </>
                   ) : (
                     "Plan this trip →"

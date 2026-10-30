@@ -165,7 +165,7 @@ export function templateItinerary({ input, destination: d }: TripContext): Itine
   });
   return {
     title: `${input.days} days in ${d.name}`,
-    summary: "A starter plan built from our destination data.",
+    summary: `Our go-to days in ${d.name}, sized to your budget. Swap anything you like.`,
     stayRecommendation: { area: d.hotelCity, why: "Central and well connected." },
     days,
     foodTips: [],

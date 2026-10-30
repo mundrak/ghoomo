@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ItineraryView, type PlanMeta } from "@/components/ItineraryView";
+import { Logo } from "@/components/Logo";
 import { Suggestions } from "@/components/Suggestions";
 import { TripForm } from "@/components/TripForm";
-import { Spinner } from "@/components/ui";
+import { secondaryButton, Spinner, textLink } from "@/components/ui";
 import { findDestination } from "@/data/destinations";
 import type { Itinerary } from "@/lib/itinerary";
 import type { FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
@@ -33,7 +34,7 @@ const toPlan = (destinationId: string, { itinerary, flight, stay, ...meta }: Pla
   meta,
 });
 
-const LOADING_LINES = ["Checking fares from your city…", "Comparing stays for your group…", "Matching places to your interests…", "Doing the budget maths…"];
+const LOADING_LINES = ["checking fares from your city…", "comparing stays for your group…", "matching places to your interests…", "doing the budget maths…"];
 
 function Loading({ title }: { title: string }) {
   const [line, setLine] = useState(0);
@@ -42,12 +43,12 @@ function Loading({ title }: { title: string }) {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="grid place-items-center rounded-3xl border border-stone-200 bg-white px-6 py-20 text-center shadow-sm">
-      <div className="text-teal-600">
+    <div className="grid place-items-center rounded-[28px] border-[1.5px] border-line bg-white px-6 py-24 text-center">
+      <div className="text-orange">
         <Spinner />
       </div>
-      <h2 className="mt-4 text-xl font-bold text-stone-900">{title}</h2>
-      <p className="mt-1 text-stone-500">{LOADING_LINES[line]}</p>
+      <h2 className="mt-5 font-display text-2xl text-ink">{title}</h2>
+      <p className="mt-1 font-hand text-2xl text-ink-soft">{LOADING_LINES[line]}</p>
     </div>
   );
 }
@@ -107,34 +108,44 @@ export default function Home() {
   const destination = plan && findDestination(plan.destinationId);
   const loadingSuggestions = busy === "form";
   const loadingDirectPlan = busy !== null && busy !== "refine" && !suggestions && input?.destinationId === busy;
+  const onForm = !plan && !suggestions && !loadingSuggestions && !loadingDirectPlan;
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-stone-200/70 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <button onClick={startOver} className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-teal-700">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-teal-600 text-lg text-white">🧭</span>
-            ghoomo
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-20 border-b-[1.5px] border-line bg-cream/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+          <button onClick={startOver} aria-label="ghoomo home">
+            <Logo />
           </button>
-          {(plan || suggestions) && (
-            <button onClick={startOver} className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:border-stone-400">
+          {!onForm && (
+            <button onClick={startOver} className={`${secondaryButton} px-4 py-2 text-sm`}>
               New trip
             </button>
           )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        {!plan && !suggestions && !loadingSuggestions && !loadingDirectPlan && (
-          <div className="mb-8 max-w-2xl">
-            <h1 className="text-3xl font-extrabold tracking-tight text-stone-900 sm:text-4xl">
-              Your budget decides. <span className="text-teal-600">We plan the trip.</span>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
+        {onForm && (
+          <div className="mb-10 max-w-3xl">
+            <p className="inline-block -rotate-2 font-hand text-2xl text-orange">*checks bank balance first*</p>
+            <h1 className="mt-2 font-display text-4xl leading-[1.02] tracking-tight text-ink sm:text-6xl">
+              Tell us the budget.
+              <br />
+              We&apos;ll plan the trip.
             </h1>
-            <p className="mt-3 text-lg text-stone-600">Tell us who&apos;s going and what you want to spend. We&apos;ll show you where you can go and plan every day of it.</p>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">
+              Who&apos;s going and what you want to spend: that&apos;s all we need. You get places that fit, real prices, and a day-by-day plan.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2 text-sm font-semibold text-ink">
+              <span className="-rotate-1 rounded-full bg-peach px-4 py-1.5">made for student groups</span>
+              <span className="rotate-1 rounded-full bg-sage px-4 py-1.5">honest about prices</span>
+              <span className="-rotate-[0.5deg] rounded-full bg-butter px-4 py-1.5">veg-friendly by default</span>
+            </div>
           </div>
         )}
 
-        {error && <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
+        {error && <div className="mb-6 rounded-2xl bg-peach px-5 py-4 text-ink">{error}</div>}
 
         {loadingSuggestions ? (
           <Loading title="Finding places that fit your budget" />
@@ -142,27 +153,34 @@ export default function Home() {
           <Loading title="Planning your trip" />
         ) : plan && destination && input ? (
           <>
-            <button onClick={() => setPlan(null)} className="mb-4 text-sm font-medium text-teal-700 hover:underline">
+            <button onClick={() => setPlan(null)} className={`${textLink} mb-6 text-sm`}>
               ← {suggestions ? "Back to destinations" : "Edit trip details"}
             </button>
             <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={busy === "refine"} />
           </>
         ) : suggestions && input ? (
           <>
-            <button onClick={() => setSuggestions(null)} className="mb-4 text-sm font-medium text-teal-700 hover:underline">
+            <button onClick={() => setSuggestions(null)} className={`${textLink} mb-6 text-sm`}>
               ← Change trip details
             </button>
-            <Suggestions
-              input={input}
-              suggestions={suggestions}
-              onPick={(s) => planTrip(input, s.destination.id, s.flight)}
-              busyId={busy ?? undefined}
-            />
+            <Suggestions input={input} suggestions={suggestions} onPick={(s) => planTrip(input, s.destination.id, s.flight)} busyId={busy ?? undefined} />
           </>
         ) : (
           <TripForm onSubmit={submit} busy={busy !== null} initial={input} />
         )}
       </main>
+
+      <footer className="border-t-[1.5px] border-line">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-muted sm:px-8">
+          <p>
+            A side project by{" "}
+            <a href="https://mundrak.github.io" target="_blank" rel="noopener noreferrer" className="font-semibold text-ink hover:text-orange">
+              khushi<span className="text-orange">.</span>
+            </a>
+          </p>
+          <p>Prices marked &ldquo;estimate&rdquo; are approximate. Check before you book.</p>
+        </div>
+      </footer>
     </div>
   );
 }

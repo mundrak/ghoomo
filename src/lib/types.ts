@@ -41,7 +41,6 @@ export interface Activity {
 
 export interface Destination {
   id: string;
-  emoji: string;
   name: string;
   country: string;
   international: boolean;
