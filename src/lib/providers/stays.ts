@@ -27,9 +27,10 @@ export async function quoteStay(input: TripInput, d: Destination): Promise<StayQ
 
   const { checkin, checkout } = tripDates(input);
   const nights = Math.max(input.days - 1, 1);
-  const rooms = Math.ceil(input.travellers / 2);
+  const share = Math.min(Math.max(input.roomShare ?? 2, 1), 4);
+  const rooms = Math.ceil(input.travellers / share);
   const occupancies = Array.from({ length: rooms }, (_, i) => ({
-    adults: i === rooms - 1 && input.travellers % 2 === 1 ? 1 : 2,
+    adults: i === rooms - 1 && input.travellers % share !== 0 ? input.travellers % share : share,
   }));
 
   try {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/budget";
+import { track } from "@/lib/track";
 import { CopyButton, WhatsAppLink } from "./Share";
 import { inputClass, primaryButton, secondaryButton, Spinner, textLink } from "./ui";
 
@@ -84,9 +85,11 @@ export function GroupCheckin({
       if (!groupId) {
         const res = await call("/api/groups", { size, limit });
         setStatus(res.status);
+        track("group_started");
         if (res.id) onGroup(res.id);
       } else {
         setStatus((await call(`/api/groups/${encodeURIComponent(groupId)}`, { limit })).status);
+        track("group_checked_in");
       }
       setAmount("");
       setEditing(false);
@@ -162,8 +165,11 @@ export function GroupCheckin({
           <div className="mt-6 space-y-2">
             <p className="text-sm font-semibold text-soft">Send this to the group</p>
             <div className="flex flex-wrap gap-2">
-              <CopyButton text={link} label="Copy check-in link" />
-              <WhatsAppLink text={`Add what you can spend for our trip. It's private, and we'll plan to the lowest amount: ${link}`} />
+              <CopyButton text={link} label="Copy check-in link" onCopy={() => track("copy_link")} />
+              <WhatsAppLink
+                text={`Add what you can spend for our trip. It's private, and we'll plan to the lowest amount: ${link}`}
+                onShare={() => track("share_whatsapp")}
+              />
             </div>
           </div>
         )}

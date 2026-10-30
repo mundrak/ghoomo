@@ -25,6 +25,8 @@ export interface TripInput {
   /** Per-person budget split by category, in INR. */
   budget: CategoryBudget;
   stay: StayType;
+  /** For hotels: how many share a room (2 by default; students often take 3–4 with extra beds). */
+  roomShare?: number;
   diet: Diet;
   cuisines: string[];
   interests: Interest[];
@@ -78,6 +80,8 @@ export interface Destination {
   foodPerDay: Record<Tier, number>; // per person
   transportPerDay: Record<Tier, number>; // per person
   activities: Activity[];
+  /** Months to warn about (monsoon, extreme heat, closed roads), with what to expect. */
+  cautions?: { months: number[]; note: string }[];
   /** Search terms the hotel provider and booking sites understand. */
   hotelCity: string;
   countryCode: string;

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
-import { CATEGORIES, CATEGORY_LABELS, inr, TIER_INFO } from "@/lib/budget";
+import { cautionFor, CATEGORIES, CATEGORY_LABELS, inr, TIER_INFO } from "@/lib/budget";
 import type { Itinerary } from "@/lib/itinerary";
 import type { CategoryBudget, Destination, FlightQuote, StayQuote, TripInput } from "@/lib/types";
-import { travelMode } from "@/lib/travel";
+import { fareDateNote, travelMode } from "@/lib/travel";
+import { track } from "@/lib/track";
+import type { FeedbackReason } from "@/lib/events";
 import { CopyButton, WhatsAppLink } from "./Share";
 import { Dot, inputClass, LocalName, Meter, ModeIcon, PriceSource, primaryButton, Spinner } from "./ui";
 
@@ -112,6 +114,12 @@ export function ItineraryView({
         shareUrl={shareUrl ?? null}
       />
 
+      {cautionFor(d, input.startDate) && (
+        <div className="rounded-xl border-l-4 border-short-ink bg-white px-5 py-4 text-[15px]">
+          <span className="font-semibold">Heads up for your dates:</span> {cautionFor(d, input.startDate)}
+        </div>
+      )}
+
       {meta.notice && <div className="rounded-xl border-[1.5px] border-signal bg-signal/15 px-5 py-4 text-sm text-ink">{meta.notice}</div>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -119,6 +127,7 @@ export function ItineraryView({
           <div className="grid gap-3 sm:grid-cols-2">
             <a
               href={mode === "none" ? undefined : flight.bookingUrl}
+              onClick={() => mode !== "none" && track("book_travel")}
               target="_blank"
               rel="noopener noreferrer"
               className={`${panel} group block p-5 transition ${mode === "none" ? "" : "hover:border-ink"}`}
@@ -134,6 +143,7 @@ export function ItineraryView({
                 <span className="text-sm text-soft"> per person, return</span>
               </p>
               {flight.label && <p className="text-sm text-soft">{flight.label}</p>}
+              {fareDateNote(flight, input.startDate) && <p className="text-sm text-soft">{fareDateNote(flight, input.startDate)}</p>}
               {flight.airline && (
                 <p className="text-sm text-soft">
                   {flight.airline}, {flight.transfers ? `${flight.transfers} stop${flight.transfers > 1 ? "s" : ""}` : "direct"}
@@ -143,7 +153,13 @@ export function ItineraryView({
                 <p className="mt-4 text-sm font-semibold underline decoration-signal decoration-2 underline-offset-4 group-hover:decoration-ink">{travelCta}</p>
               )}
             </a>
-            <a href={stay.bookingUrl} target="_blank" rel="noopener noreferrer" className={`${panel} group block p-5 transition hover:border-ink`}>
+            <a
+              href={stay.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => track("book_stay")}
+              className={`${panel} group block p-5 transition hover:border-ink`}
+            >
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="font-semibold">Stay in {itinerary.stayRecommendation.area}</span>
                 <PriceSource kind="stay" live={stay.source === "live"} />
@@ -223,6 +239,8 @@ export function ItineraryView({
               </section>
             ) : null,
           )}
+
+          <PlanFeedback key={itinerary.title + itinerary.days.length} />
         </div>
 
         <aside className="order-first space-y-4 lg:sticky lg:top-6 lg:order-none lg:self-start">
@@ -326,8 +344,65 @@ function ShareBar({ text, shareUrl }: { text: string; shareUrl: string | null })
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="mr-1 text-sm font-semibold text-soft">Send it to the group</span>
-      <WhatsAppLink text={text} />
-      {shareUrl && <CopyButton text={shareUrl} label="Copy link" />}
+      <WhatsAppLink text={text} onShare={() => track("share_whatsapp")} />
+      {shareUrl && <CopyButton text={shareUrl} label="Copy link" onCopy={() => track("copy_link")} />}
     </div>
+  );
+}
+
+const REASONS: { id: FeedbackReason; label: string }[] = [
+  { id: "prices", label: "Prices look wrong" },
+  { id: "places", label: "Wrong kind of places" },
+  { id: "pace", label: "Too packed or too slow" },
+  { id: "food", label: "Food doesn't suit us" },
+  { id: "other", label: "Something else" },
+];
+
+/** A quick rating so we learn which plans work. Counted anonymously. */
+function PlanFeedback() {
+  const [state, setState] = useState<"ask" | "why" | "done">("ask");
+  const chip = "rounded-lg border-[1.5px] border-line bg-white px-3 py-1.5 text-sm font-semibold text-ink transition hover:border-ink";
+  return (
+    <section className={`${panel} p-5 sm:p-6`} aria-live="polite">
+      {state === "ask" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="mr-2 font-bold">Was this plan useful?</h2>
+          <button
+            type="button"
+            className={chip}
+            onClick={() => {
+              track("plan_useful");
+              setState("done");
+            }}
+          >
+            Yes
+          </button>
+          <button type="button" className={chip} onClick={() => setState("why")}>
+            Not really
+          </button>
+        </div>
+      )}
+      {state === "why" && (
+        <div>
+          <h2 className="font-bold">What was off?</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {REASONS.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={chip}
+                onClick={() => {
+                  track("plan_not_useful", r.id);
+                  setState("done");
+                }}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {state === "done" && <p className="text-soft">Thanks. That helps make the next plan better.</p>}
+    </section>
   );
 }

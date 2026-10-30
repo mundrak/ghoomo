@@ -61,7 +61,7 @@ export function scaleBudget(b: CategoryBudget, total: number): CategoryBudget {
 }
 
 /** Per-person, per-night stay cost, accounting for how the group shares rooms. */
-export function stayPerPersonNight(d: Destination, input: Pick<TripInput, "stay" | "tier" | "travellers">) {
+export function stayPerPersonNight(d: Destination, input: Pick<TripInput, "stay" | "tier" | "travellers" | "roomShare">) {
   const n = Math.max(input.travellers, 1);
   switch (input.stay) {
     case "hostel": {
@@ -70,8 +70,11 @@ export function stayPerPersonNight(d: Destination, input: Pick<TripInput, "stay"
       return roundTo(d.stay.hostelBed * mult, 10);
     }
     case "hotel": {
-      const rooms = Math.ceil(n / 2);
-      return roundTo((d.stay.hotelRoom[input.tier] * rooms) / n, 10);
+      // An extra bed adds roughly 15% to the room price.
+      const share = Math.min(Math.max(input.roomShare ?? 2, 1), 4);
+      const rooms = Math.ceil(n / share);
+      const perRoom = d.stay.hotelRoom[input.tier] * (1 + 0.15 * Math.max(share - 2, 0));
+      return roundTo((perRoom * rooms) / n, 10);
     }
     case "airbnb": {
       // Listed prices are for a place that sleeps 4-6; smaller parties take a smaller place.
@@ -104,7 +107,13 @@ export function estimateCost(d: Destination, input: TripInput, flight: FlightQuo
   return { ...cost, total: sumBudget(cost) };
 }
 
-const isVegDiet = (diet: TripInput["diet"]) => diet === "vegetarian" || diet === "jain" || diet === "vegan";
+export const isVegDiet = (diet: TripInput["diet"]) => diet === "vegetarian" || diet === "jain" || diet === "vegan";
+
+/** A warning for the trip's month (monsoon, heat, closed roads), if there is one. */
+export function cautionFor(d: Destination, startDate: string) {
+  const month = Number(startDate.slice(5, 7));
+  return d.cautions?.find((c) => c.months.includes(month))?.note ?? null;
+}
 
 export function scoreDestination(d: Destination, input: TripInput, cost: CostBreakdown): Omit<Suggestion, "destination" | "flight" | "cost"> {
   const budgetTotal = sumBudget(input.budget);
@@ -121,6 +130,8 @@ export function scoreDestination(d: Destination, input: TripInput, cost: CostBre
     reasons.push(`Fits your budget with ₹${spare.toLocaleString("en-IN")} to spare per person`);
     score += Math.min((spare / budgetTotal) * 30, 15);
   }
+
+  if (cautionFor(d, input.startDate)) score -= 20;
 
   if (d.bestMonths.includes(month)) {
     reasons.push("Great season for your dates");

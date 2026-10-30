@@ -19,6 +19,7 @@ export const TripInputSchema = z.object({
   tier: z.enum(["budget", "comfort", "luxury"]),
   budget: z.object({ flights: money, stay: money, food: money, activities: money, transport: money }),
   stay: z.enum(["hostel", "hotel", "airbnb"]),
+  roomShare: z.number().int().min(1).max(4).optional(),
   diet: z.enum(["any", "vegetarian", "jain", "vegan", "halal", "eggetarian"]),
   cuisines: z.array(z.string().max(30)).max(10),
   interests: z.array(interest).max(8),

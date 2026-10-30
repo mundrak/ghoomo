@@ -263,6 +263,20 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
           <Group label="Where to stay">
             <Segmented<StayType> label="Where to stay" value={value.stay} onChange={(stay) => set({ stay })} options={STAYS} />
           </Group>
+          {value.stay === "hotel" && (
+            <Group label="People per room">
+              <Segmented<"2" | "3" | "4">
+                label="People per room"
+                value={String(value.roomShare ?? 2) as "2" | "3" | "4"}
+                onChange={(v) => set({ roomShare: Number(v) })}
+                options={[
+                  { id: "2", label: "2" },
+                  { id: "3", label: "3, with an extra bed" },
+                  { id: "4", label: "4" },
+                ]}
+              />
+            </Group>
+          )}
           <Group label="Where to look">
             <Segmented<TripInput["scope"]> label="Where to look" value={value.scope} onChange={(scope) => set({ scope })} options={SCOPES} />
           </Group>

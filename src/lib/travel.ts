@@ -90,7 +90,8 @@ export function planTravel(input: TripInput, d: Destination, flightUrl: string):
     const routeKm = km * ROUTE_FACTOR;
     const hours = routeKm / SPEED_KMH[g.mode];
     // Long journeys eat into short trips: only go overland if it leaves most of the trip for being there.
-    const fitsTrip = hours <= 12 || input.days >= 4;
+    // Up to 3 days: an overnight at most. 4–5 days: up to ~16 h. Longer trips: whatever the style allows.
+    const fitsTrip = hours <= 12 || (input.days >= 4 && hours <= 16) || input.days >= 6;
     if (hours <= MAX_GROUND_HOURS[input.tier] && fitsTrip) {
       const oneWay = Math.max(routeKm * PER_KM[g.mode][input.tier], MIN_FARE[g.mode]);
       return {
@@ -114,6 +115,18 @@ export function planTravel(input: TripInput, d: Destination, flightUrl: string):
     source: "estimate",
     bookingUrl: flightUrl,
   };
+}
+
+/**
+ * When a recent fare was seen for a different day than the trip starts (the fare API falls back to
+ * the cheapest fare that month), say which day, so the price isn't mistaken for theirs.
+ */
+export function fareDateNote(q: FlightQuote, startDate: string) {
+  if (q.source !== "live" || !q.departAt) return null;
+  const seen = new Date(q.departAt);
+  const wanted = new Date(`${startDate}T00:00:00`);
+  if (Number.isNaN(seen.getTime()) || Math.abs(seen.getTime() - wanted.getTime()) <= 1.5 * 86_400_000) return null;
+  return `Fare seen for a ${seen.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} departure, not your date.`;
 }
 
 /** How a saved quote should be described, including ones made before trains and buses existed. */
