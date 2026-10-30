@@ -27,6 +27,14 @@ const TIER_PRESETS: Record<Tier, { flights: number; perDay: Omit<CategoryBudget,
   luxury: { flights: 35000, perDay: { stay: 9000, food: 4500, activities: 4000, transport: 3500 } },
 };
 
+// Return flights abroad cost far more than a train or a domestic hop (Delhi–Bangkok is usually
+// ₹18,000–30,000), so trips abroad start with a bigger "getting there" share.
+const ABROAD_TRAVEL: Record<Tier, number> = { budget: 18000, comfort: 28000, luxury: 60000 };
+
+/** The default "getting there" amount for a tier, bigger when looking abroad. */
+export const presetTravel = (tier: Tier, scope: TripInput["scope"] = "anywhere") =>
+  scope === "abroad" ? ABROAD_TRAVEL[tier] : TIER_PRESETS[tier].flights;
+
 export const TIER_INFO: Record<Tier, { label: string; blurb: string }> = {
   budget: { label: "Budget", blurb: "Sleeper trains and buses, hostels, street food, free sights" },
   comfort: { label: "Comfort", blurb: "AC trains or short flights, nice hotels or Airbnbs, a few splurges" },
@@ -35,11 +43,11 @@ export const TIER_INFO: Record<Tier, { label: string; blurb: string }> = {
 
 const roundTo = (n: number, step = 100) => Math.round(n / step) * step;
 
-export function presetBudget(tier: Tier, days: number): CategoryBudget {
+export function presetBudget(tier: Tier, days: number, scope: TripInput["scope"] = "anywhere"): CategoryBudget {
   const p = TIER_PRESETS[tier];
   const nights = Math.max(days - 1, 1);
   return {
-    flights: p.flights,
+    flights: presetTravel(tier, scope),
     stay: roundTo(p.perDay.stay * nights),
     food: roundTo(p.perDay.food * days),
     activities: roundTo(p.perDay.activities * days),

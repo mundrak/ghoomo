@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { findDestination } from "@/data/destinations";
-import { aiEnabled, generateItinerary, type Itinerary, templateItinerary } from "@/lib/itinerary";
-import { allowance, cacheGet, cacheSet, identify, planCacheKey, recordUse, withVisitor, type Allowance } from "@/lib/limits";
+import { aiEnabled, generateItinerary, type Itinerary, PREMIUM_MODEL, STANDARD_MODEL, templateItinerary, wantsPremium } from "@/lib/itinerary";
+import { addPremiumSpend, allowance, cacheGet, cacheSet, identify, planCacheKey, premiumAvailable, recordUse, withVisitor, type Allowance } from "@/lib/limits";
 import { quoteTravel } from "@/lib/providers/flights";
 import { quoteStay } from "@/lib/providers/stays";
 import { FlightQuoteSchema, ItineraryInputSchema, MAX_CHANGE_CHARS, StayQuoteSchema, TripInputSchema } from "@/lib/validate";
@@ -62,10 +62,10 @@ export async function POST(req: Request) {
 
   // Someone already asked for this exact trip: serve it for free.
   if (!isEdit) {
-    const cached = await cacheGet<Itinerary>(cacheKey);
+    const cached = await cacheGet<{ itinerary: Itinerary; premium: boolean }>(cacheKey);
     if (cached) {
       const left = await allowance(visitor, "plan");
-      return reply({ itinerary: cached, flight, stay, ai: true, aiAvailable: true, ...usage(left) });
+      return reply({ itinerary: cached.itinerary, flight, stay, ai: true, premium: cached.premium, aiAvailable: true, ...usage(left) });
     }
   }
 
@@ -84,11 +84,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { itinerary, costUsd } = await generateItinerary(ctx, body.itinerary, body.change);
+    // Luxury, Jain and vegan trips get the premium model while today's premium budget lasts.
+    // Edits use the same rule, so a plan is usually edited by the model that wrote it.
+    const premium = wantsPremium(body.input) && (await premiumAvailable());
+    const { itinerary, costUsd } = await generateItinerary(ctx, body.itinerary, body.change, premium ? PREMIUM_MODEL() : STANDARD_MODEL());
     await recordUse(visitor, isEdit ? "edit" : "plan", costUsd);
-    if (!isEdit) await cacheSet(cacheKey, itinerary);
+    if (premium) await addPremiumSpend(costUsd);
+    if (!isEdit) await cacheSet(cacheKey, { itinerary, premium });
     const after = isEdit ? { ...left, editsLeft: left.editsLeft - 1 } : { ...left, plansLeft: left.plansLeft - 1 };
-    return reply({ itinerary, flight, stay, ai: true, aiAvailable: true, ...usage(after) });
+    return reply({ itinerary, flight, stay, ai: true, premium, aiAvailable: true, ...usage(after) });
   } catch (err) {
     console.error("[ai] call failed", err);
     // A failed plan still gets a usable starter plan; a failed edit keeps the current one.

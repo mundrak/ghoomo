@@ -103,7 +103,14 @@ const PRICES: Record<string, { input: number; output: number }> = {
 // Server-side refusal fallbacks are available for these models only.
 const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
 
-export const aiModel = () => process.env.CLAUDE_MODEL || "claude-opus-5-5";
+// Two models: a cheap one for most trips, and a stronger one where plan quality matters most.
+// Luxury trips get the stronger model, and so do Jain and vegan trips, because the cheap model
+// was found suggesting momos and aloo dishes to a Jain group.
+export const STANDARD_MODEL = () => process.env.AI_STANDARD_MODEL || "claude-haiku-5-5";
+export const PREMIUM_MODEL = () => process.env.AI_PREMIUM_MODEL || "claude-opus-5-5";
+
+/** Whether this trip should get the stronger model (if today's premium budget allows). */
+export const wantsPremium = (input: TripInput) => input.tier === "luxury" || input.diet === "jain" || input.diet === "vegan";
 export const COMPARE_MODELS = Object.keys(PRICES);
 
 export function callCostUsd(model: string, usage: { input_tokens: number; output_tokens: number }) {
@@ -115,11 +122,10 @@ export async function generateItinerary(
   ctx: TripContext,
   current?: Itinerary,
   change?: string,
-  /** Use a specific model instead of CLAUDE_MODEL (for the model comparison page). */
-  modelOverride?: string,
+  /** The model to use (see STANDARD_MODEL and PREMIUM_MODEL). */
+  model: string = STANDARD_MODEL(),
 ): Promise<{ itinerary: Itinerary; costUsd: number; model: string; seconds: number }> {
   const client = new Anthropic();
-  const model = modelOverride ?? aiModel();
   const started = Date.now();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: `Plan this trip:\n${describeTrip(ctx)}` },

@@ -41,7 +41,7 @@ AI itineraries are the only cost that grows with users. The app limits it:
 - **Per visitor:** 3 AI plans and 10 AI edits per day. After that, visitors get the free starter plan.
 - **Daily spend cap:** total AI spend stops at $2/day by default (worst case ~$60/month). After that, everyone gets starter plans until the next day.
 - **Cache:** identical trip requests share one AI plan for 7 days.
-- **Model choice:** `CLAUDE_MODEL` switches between Opus 5.5, Sonnet 5.5 and Haiku 5.5. Haiku is about 40× cheaper than Opus.
+- **Two models:** most trips are planned by Haiku 5.5 (`AI_STANDARD_MODEL`). Luxury, Jain and vegan trips get Opus 5.5 (`AI_PREMIUM_MODEL`), labelled "Planned by premium AI", up to $1/day (`AI_PREMIUM_DAILY_BUDGET_USD`). After that they fall back to Haiku for the day. Haiku is about 40× cheaper than Opus; in testing it missed Jain food rules (it suggested momos and aloo dishes), which is why those trips go to Opus.
 
 All limits are environment variables (see `.env.example`). For them to hold on Vercel, connect a free Upstash Redis database: in the Vercel project, open **Storage → Create Database → Upstash (Redis)** and connect it to the project. Vercel adds the connection variables, and the app picks them up automatically.
 

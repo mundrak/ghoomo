@@ -193,7 +193,7 @@ export function App({ storage }: { storage: boolean }) {
   const save = async (p: Plan, forInput: TripInput) => {
     if (!storage) return;
     try {
-      const { id } = await post<{ id: string }>("/api/trips", { input: forInput, destinationId: p.destinationId, itinerary: p.itinerary, flight: p.flight, stay: p.stay, meta: { ai: p.meta.ai, aiAvailable: p.meta.aiAvailable } });
+      const { id } = await post<{ id: string }>("/api/trips", { input: forInput, destinationId: p.destinationId, itinerary: p.itinerary, flight: p.flight, stay: p.stay, meta: { ai: p.meta.ai, premium: p.meta.premium, aiAvailable: p.meta.aiAvailable } });
       setTripId(id);
       setLink({ trip: id });
     } catch {

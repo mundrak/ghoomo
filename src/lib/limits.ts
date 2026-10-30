@@ -18,6 +18,9 @@ export const LIMITS = {
   plansPerNetwork: num(process.env.AI_PLANS_PER_NETWORK, 30),
   editsPerNetwork: num(process.env.AI_EDITS_PER_NETWORK, 100),
   dailyBudgetUsd: num(process.env.AI_DAILY_BUDGET_USD, 2),
+  // Part of the daily budget that can go on the premium model. Once it's spent, trips that
+  // would get the premium model get the standard one instead.
+  premiumDailyBudgetUsd: num(process.env.AI_PREMIUM_DAILY_BUDGET_USD, 1),
   // Destination board requests, per minute. Each one can look up several live fares.
   boardPerMinuteBrowser: num(process.env.BOARD_PER_MINUTE_BROWSER, 30),
   boardPerMinuteNetwork: num(process.env.BOARD_PER_MINUTE_NETWORK, 300),
@@ -129,6 +132,21 @@ export async function allowance(v: Visitor, kind: AiKind): Promise<Allowance> {
   return { ...base, allowed: true };
 }
 
+const premiumKey = () => `spend:premium:${today()}`;
+
+/** True while today's premium-model spend is under its cap. */
+export async function premiumAvailable() {
+  try {
+    return Number((await store.get(premiumKey())) ?? 0) / 1_000_000 < LIMITS.premiumDailyBudgetUsd;
+  } catch {
+    return false;
+  }
+}
+
+export async function addPremiumSpend(costUsd: number) {
+  await store.incrBy(premiumKey(), Math.ceil(costUsd * 1_000_000), 2 * DAY_SECONDS);
+}
+
 /** Counts AI spend that isn't tied to a visitor (the model comparison page) toward the daily cap. */
 export async function addSpend(costUsd: number) {
   await store.incrBy(`spend:${today()}`, Math.ceil(costUsd * 1_000_000), 2 * DAY_SECONDS);
@@ -155,7 +173,7 @@ export function planCacheKey(input: TripInput, destinationId: string) {
   const n = input.travellers;
   const groupBand = n === 1 ? "1" : n === 2 ? "2" : n <= 4 ? "3-4" : n <= 6 ? "5-6" : "7+";
   const total = Object.values(input.budget).reduce((s, x) => s + x, 0);
-  return `plan:v2:${sha(
+  return `plan:v3:${sha(
     JSON.stringify([
       destinationId,
       input.origin,

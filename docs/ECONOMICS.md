@@ -20,13 +20,15 @@ The only cost that grows with users is the AI that writes itineraries. Everythin
 
 Estimated with roughly 2,000 input and 5,000 output tokens per new plan (output includes the model's thinking), and ₹88 per US$:
 
-| Model (`CLAUDE_MODEL`) | Price per M tokens (in / out) | One new plan | One edit | 1,000 plans |
+| Model | Price per M tokens (in / out) | One new plan | One edit | 1,000 plans |
 |---|---|---|---|---|
-| `claude-opus-5-5` (default) | $4 / $20 | ~$0.11 (₹9) | ~$0.08 (₹7) | ~$110 (₹9,700) |
+| `claude-opus-5-5` (luxury, Jain, vegan) | $4 / $20 | ~$0.11 (₹9) | ~$0.08 (₹7) | ~$110 (₹9,700) |
 | `claude-sonnet-5-5` | $2 / $10 | ~$0.05 (₹4.5) | ~$0.04 (₹3.5) | ~$55 (₹4,800) |
-| `claude-haiku-5-5` | $0.10 / $0.50 | ~$0.003 (₹0.25) | ~$0.002 (₹0.2) | ~$3 (₹260) |
+| `claude-haiku-5-5` (all other trips) | $0.10 / $0.50 | ~$0.003 (₹0.25) | ~$0.002 (₹0.2) | ~$3 (₹260) |
 
-Switching model is one environment variable on Vercel. The real decision is quality, so try the same five trips on each model and compare before choosing.
+The app uses two models (`AI_STANDARD_MODEL` and `AI_PREMIUM_MODEL`). Haiku plans most trips; Opus plans luxury trips and Jain or vegan diets, capped at $1/day (`AI_PREMIUM_DAILY_BUDGET_USD`). In the /compare test run, Haiku stayed within budget as often as Opus but got the Jain trip's food wrong.
+
+With mostly budget users, the blended cost is close to Haiku's: if 1 in 10 plans goes to Opus, 1,000 plans cost about $14 (₹1,200).
 
 ## The guards that cap your bill
 
