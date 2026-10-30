@@ -1,7 +1,35 @@
 @import "tailwindcss";
 
+/* Palette and type borrowed from khushi.'s portfolio (mundrak.github.io), so ghoomo reads as part of the same family. */
+@theme {
+  --color-cream: #fdf6ec;
+  --color-ink: #33291f;
+  --color-ink-soft: #5c503f;
+  --color-muted: #8a7a63;
+  --color-line: #f0e4d0;
+  --color-orange: #e2603f;
+  --color-gold: #b98a3c;
+  --color-mustard: #ffd98e;
+  --color-peach: #fbd3c0;
+  --color-sage: #d9e6c3;
+  --color-butter: #f9e6a8;
+
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-archivo-black), var(--font-space-grotesk), sans-serif;
+  --font-hand: var(--font-caveat), cursive;
+}
+
 body {
-  background: #faf8f5;
-  color: #1c1917;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-mustard);
+}
+
+/* Range inputs: thin ink track, ink thumb. */
+input[type="range"] {
+  accent-color: var(--color-ink);
 }

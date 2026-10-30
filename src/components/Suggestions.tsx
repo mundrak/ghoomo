@@ -2,7 +2,9 @@
 
 import { CATEGORIES, CATEGORY_LABELS, inr, sumBudget } from "@/lib/budget";
 import type { Suggestion, TripInput } from "@/lib/types";
-import { Badge, Meter } from "./ui";
+import { Badge, Dot, Kicker, primaryButton, Spinner, SplitBar } from "./ui";
+
+const SWATCHES = ["bg-peach", "bg-sage", "bg-butter", "bg-mustard/70"];
 
 export function Suggestions({
   input,
@@ -17,51 +19,81 @@ export function Suggestions({
 }) {
   const budget = sumBudget(input.budget);
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-stone-900">Where your {inr(budget)} per person can take you</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        {suggestions.map((s) => {
+    <div className="space-y-8">
+      <div>
+        <Kicker>
+          {input.travellers} {input.travellers === 1 ? "traveller" : "travellers"} · {input.days} days · best matches first
+        </Kicker>
+        <h2 className="mt-2 font-display text-3xl leading-tight text-ink sm:text-4xl">Where {inr(budget)} can take you</h2>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {suggestions.map((s, i) => {
           const d = s.destination;
+          const fits = s.overBudgetBy === 0;
           return (
-            <article key={d.id} className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-stone-900">{d.name}</h3>
-                  <p className="text-sm text-stone-500">{d.country}</p>
-                </div>
-                <div className="text-right">
-                  <div className={`text-lg font-semibold ${s.overBudgetBy ? "text-rose-600" : "text-stone-900"}`}>{inr(s.cost.total)}</div>
-                  <div className="text-xs text-stone-500">per person, all in</div>
-                </div>
+            <article
+              key={d.id}
+              className="relative flex flex-col overflow-hidden rounded-[24px] border-[1.5px] border-line bg-white shadow-[0_4px_18px_rgba(51,41,31,0.05)]"
+            >
+              <div className={`${SWATCHES[i % SWATCHES.length]} px-6 pb-5 pt-6`}>
+                <p className="text-sm font-semibold text-ink-soft">{d.country}</p>
+                <h3 className="mt-1 font-display text-2xl leading-tight text-ink">{d.name}</h3>
               </div>
-              <Meter used={s.cost.total} limit={budget} />
-              {s.overBudgetBy > 0 && <p className="text-sm text-rose-600">{inr(s.overBudgetBy)} over your budget</p>}
+              {i === 0 && (
+                <span className="absolute right-4 top-4 rotate-6 rounded-full bg-orange px-3 py-0.5 font-hand text-lg text-white">top pick</span>
+              )}
 
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
-                {CATEGORIES.map((c) => (
-                  <div key={c} className="flex justify-between gap-2 sm:block">
-                    <dt className="text-stone-500">{CATEGORY_LABELS[c]}</dt>
-                    <dd className="text-stone-800">
-                      {inr(s.cost[c])} {c === "flights" && <Badge live={s.flight.source === "live"} />}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+              <div className="flex flex-1 flex-col gap-5 p-6">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p>
+                    <span className="font-display text-2xl tabular-nums text-ink">{inr(s.cost.total)}</span>
+                    <span className="text-sm text-muted"> / person</span>
+                  </p>
+                  <span className={`text-sm font-semibold ${fits ? "text-ink-soft" : "text-orange"}`}>
+                    {fits ? `${inr(budget - s.cost.total)} to spare` : `${inr(s.overBudgetBy)} over`}
+                  </span>
+                </div>
 
-              <ul className="space-y-1 text-sm text-stone-700">
-                {s.reasons.map((r) => (
-                  <li key={r}>✓ {r}</li>
-                ))}
-              </ul>
-              <p className="text-xs text-stone-500">Visa: {d.visa}</p>
+                <div className="space-y-3">
+                  <SplitBar parts={CATEGORIES.map((c) => ({ category: c, value: s.cost[c] }))} />
+                  <ul className="space-y-1.5 text-sm">
+                    {CATEGORIES.map((c) => (
+                      <li key={c} className="flex items-center justify-between gap-2 text-ink-soft">
+                        <span className="inline-flex items-center gap-2">
+                          <Dot category={c} />
+                          {CATEGORY_LABELS[c]}
+                          {c === "flights" && <Badge live={s.flight.source === "live"} />}
+                        </span>
+                        <span className="tabular-nums text-ink">{inr(s.cost[c])}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
 
-              <button
-                onClick={() => onPick(s)}
-                disabled={Boolean(busyId)}
-                className="mt-auto rounded-xl bg-teal-700 px-4 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-60"
-              >
-                {busyId === d.id ? "Planning…" : "Plan this trip"}
-              </button>
+                <ul className="space-y-1 border-t-[1.5px] border-line pt-4 text-sm text-ink-soft">
+                  {s.reasons.slice(0, 3).map((r) => (
+                    <li key={r} className="flex gap-2">
+                      <span className="text-orange">→</span>
+                      {r}
+                    </li>
+                  ))}
+                  <li className="flex gap-2">
+                    <span className="text-orange">→</span>
+                    Visa: {d.visa}
+                  </li>
+                </ul>
+
+                <button onClick={() => onPick(s)} disabled={Boolean(busyId)} className={`${primaryButton} mt-auto w-full`}>
+                  {busyId === d.id ? (
+                    <>
+                      <Spinner /> Planning…
+                    </>
+                  ) : (
+                    "Plan this trip →"
+                  )}
+                </button>
+              </div>
             </article>
           );
         })}

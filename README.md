@@ -34,14 +34,29 @@ Each price is labelled **Live price** or **Estimate** in the UI.
 
 > The Travelpayouts and LiteAPI adapters were written against their public docs but haven't been tested with real keys yet. Check them first once you have keys.
 
+## Keeping AI costs under control
+
+AI itineraries are the only cost that grows with users. The app limits it:
+
+- **Per visitor:** 3 AI plans and 10 AI edits per day. After that, visitors get the free starter plan.
+- **Daily spend cap:** total AI spend stops at $2/day by default (worst case ~$60/month). After that, everyone gets starter plans until the next day.
+- **Cache:** identical trip requests share one AI plan for 7 days.
+- **Model choice:** `CLAUDE_MODEL` switches between Opus 5.5, Sonnet 5.5 and Haiku 5.5. Haiku is about 40× cheaper than Opus.
+
+All limits are environment variables (see `.env.example`). For them to hold on Vercel, connect a free Upstash Redis database: in the Vercel project, open **Storage → Create Database → Upstash (Redis)** and connect it to the project. Vercel adds the connection variables, and the app picks them up automatically.
+
+Full numbers, suggested settings and how the app can pay for itself: [docs/ECONOMICS.md](docs/ECONOMICS.md).
+
 ## Code map
 
 - `src/data/destinations.ts`: the 15 starter destinations, with cost estimates, seasons, visa notes for Indian passports and a vegetarian-friendliness score
 - `src/lib/budget.ts`: tier presets, the group cost model (shared rooms, shared cabs) and destination scoring
 - `src/lib/providers/`: live flight and hotel prices, each falling back to estimates
-- `src/lib/itinerary.ts`: Claude prompt, itinerary schema and the no-key template
+- `src/lib/itinerary.ts`: Claude prompt, itinerary schema, cost tracking and the starter-plan template
+- `src/lib/limits.ts`: per-visitor limits, daily spend cap and itinerary cache
+- `src/lib/validate.ts`: checks and size limits on incoming requests
 - `src/app/api/suggest`, `src/app/api/itinerary`: the two endpoints
-- `src/components/`: form, suggestion cards, itinerary + budget tracker
+- `src/components/`: step-by-step trip form, suggestion cards, itinerary + budget tracker
 
 ## Ideas for next
 - Save and share trips with the group, plus split-the-bill per person
