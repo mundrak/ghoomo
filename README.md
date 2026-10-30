@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ghoomo
 
-## Getting Started
+A budget-first trip planner for Indian travellers, built mainly for students and friend groups of 4–6.
 
-First, run the development server:
+You say who's going, your dates, your travel style (Budget / Comfort / Luxury) and how much each person wants to spend on flights, stay, food, experiences and local transport. ghoomo then either:
+
+- **suggests destinations** your budget actually covers, ranked by budget fit, season, interests and how easy it is to eat vegetarian; or
+- **plans a trip** to the place you already picked.
+
+Every plan comes with a day-by-day itinerary, booking links, and a live **budget tracker** that compares planned spend with your budget for each category. You can then change the plan by chatting ("make it cheaper", "swap day 3 for a beach day").
+
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # add whichever keys you have
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without any keys the app still works end to end, using estimates and a basic itinerary built from its own data.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Where prices come from
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| What | Source | Without a key |
+|---|---|---|
+| Flights | [Travelpayouts](https://www.travelpayouts.com) Aviasales Data API: recently seen fares in INR, with a link to book | Rough fare estimate + Skyscanner search link |
+| Hotels | [LiteAPI](https://www.liteapi.travel): live, bookable hotel rates | Per-destination estimate + Booking.com search link |
+| Hostels / Airbnb | No open API. Estimates + Hostelworld / Airbnb search links, pre-filled with your dates and group size | — |
+| Itinerary | Claude (Anthropic API), structured JSON output | Template itinerary; editing by chat turned off |
 
-## Learn More
+Each price is labelled **Live price** or **Estimate** in the UI.
 
-To learn more about Next.js, take a look at the following resources:
+**Why not Skyscanner or Booking.com directly?** Both APIs are partner-only, and they approve established businesses with real traffic. Scraping them breaks their terms. Travelpayouts and LiteAPI are open to small projects, and both pay affiliate commission. Once ghoomo has users, applying to Skyscanner and Booking.com partner programmes is a realistic next step. The provider code in `src/lib/providers/` is set up so another source can be added there.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> The Travelpayouts and LiteAPI adapters were written against their public docs but haven't been tested with real keys yet. Check them first once you have keys.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Code map
 
-## Deploy on Vercel
+- `src/data/destinations.ts`: the 15 starter destinations, with cost estimates, seasons, visa notes for Indian passports and a vegetarian-friendliness score
+- `src/lib/budget.ts`: tier presets, the group cost model (shared rooms, shared cabs) and destination scoring
+- `src/lib/providers/`: live flight and hotel prices, each falling back to estimates
+- `src/lib/itinerary.ts`: Claude prompt, itinerary schema and the no-key template
+- `src/app/api/suggest`, `src/app/api/itinerary`: the two endpoints
+- `src/components/`: form, suggestion cards, itinerary + budget tracker
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Ideas for next
+- Save and share trips with the group, plus split-the-bill per person
+- Train and bus legs (IRCTC, redBus) for domestic trips
+- More destinations, and cost data refreshed from live prices over time
+- Student discounts (ISIC) and group deals
