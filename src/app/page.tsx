@@ -1,103 +1,114 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { ItineraryView } from "@/components/ItineraryView";
+import { Suggestions } from "@/components/Suggestions";
+import { TripForm } from "@/components/TripForm";
+import { findDestination } from "@/data/destinations";
+import type { Itinerary } from "@/lib/itinerary";
+import type { FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
+
+interface Plan {
+  destinationId: string;
+  itinerary: Itinerary;
+  flight: FlightQuote;
+  stay: StayQuote;
+  ai: boolean;
+}
+
+async function post<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+  return data as T;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [input, setInput] = useState<TripInput | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const run = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const planTrip = (tripInput: TripInput, destinationId: string, flight?: FlightQuote) =>
+    run(destinationId, async () => {
+      const res = await post<Omit<Plan, "destinationId">>("/api/itinerary", { input: tripInput, destinationId, flight });
+      setPlan({ destinationId, ...res });
+    });
+
+  const submit = (tripInput: TripInput) => {
+    setInput(tripInput);
+    setPlan(null);
+    setSuggestions(null);
+    if (tripInput.destinationId) return planTrip(tripInput, tripInput.destinationId);
+    run("form", async () => {
+      const res = await post<{ suggestions: Suggestion[] }>("/api/suggest", tripInput);
+      setSuggestions(res.suggestions);
+    });
+  };
+
+  const refine = (change: string) => {
+    if (!plan || !input) return;
+    run("refine", async () => {
+      const res = await post<Omit<Plan, "destinationId">>("/api/itinerary", { input, ...plan, change });
+      setPlan({ ...plan, ...res });
+    });
+  };
+
+  const startOver = () => {
+    setPlan(null);
+    setSuggestions(null);
+  };
+
+  const destination = plan && findDestination(plan.destinationId);
+
+  return (
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
+      <header className="mb-8">
+        <button onClick={startOver} className="text-2xl font-bold tracking-tight text-teal-800">
+          ghoomo
+        </button>
+        <p className="mt-1 text-stone-600">Tell us your budget. We&apos;ll tell you where to go and plan the whole trip.</p>
+      </header>
+
+      {error && <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>}
+
+      {plan && destination && input ? (
+        <>
+          <button onClick={() => setPlan(null)} className="mb-4 text-sm text-teal-700 underline">
+            ← {suggestions ? "Back to destinations" : "Back"}
+          </button>
+          <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={busy === "refine"} />
+        </>
+      ) : suggestions && input ? (
+        <>
+          <button onClick={() => setSuggestions(null)} className="mb-4 text-sm text-teal-700 underline">
+            ← Change trip details
+          </button>
+          <Suggestions
+            input={input}
+            suggestions={suggestions}
+            onPick={(s) => planTrip(input, s.destination.id, s.flight)}
+            busyId={busy ?? undefined}
+          />
+        </>
+      ) : (
+        <div className="rounded-2xl border border-stone-200 bg-white/70 p-5 sm:p-8">
+          <TripForm onSubmit={submit} busy={busy !== null} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      )}
+    </main>
   );
 }
