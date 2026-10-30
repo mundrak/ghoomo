@@ -146,7 +146,7 @@ export function templateItinerary({ input, destination: d }: TripContext): Itine
       items.push({
         time: "Arrival",
         category: "transport",
-        title: `Arrive at ${d.airport} and check in`,
+        title: `Arrive in ${d.name} and check in`,
         details: d.arrivalNote ?? "Take a prepaid cab or airport transfer to your stay.",
         costPerPerson: transport,
       });
@@ -170,6 +170,6 @@ export function templateItinerary({ input, destination: d }: TripContext): Itine
     days,
     foodTips: [],
     moneySavingTips: [],
-    beforeYouGo: [`Visa: ${d.visa}`],
+    beforeYouGo: d.international ? [`Visa for Indian passports: ${d.visa}. Check the rules before you book.`] : [],
   };
 }

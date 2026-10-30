@@ -1,35 +1,118 @@
 @import "tailwindcss";
 
-/* Palette and type borrowed from khushi.'s portfolio (mundrak.github.io), so ghoomo reads as part of the same family. */
+/*
+  ghoomo's own look: airport and railway wayfinding, kept quiet.
+  Paper and charcoal ink, one signal yellow (the colour of station boards and airport signs),
+  and a dark departures board for results. Archivo throughout; place names also appear in
+  their local script, set in Noto.
+*/
 @theme {
-  --color-cream: #fdf6ec;
-  --color-ink: #33291f;
-  --color-ink-soft: #5c503f;
-  --color-muted: #8a7a63;
-  --color-line: #f0e4d0;
-  --color-orange: #e2603f;
-  --color-gold: #b98a3c;
-  --color-mustard: #ffd98e;
-  --color-peach: #fbd3c0;
-  --color-sage: #d9e6c3;
-  --color-butter: #f9e6a8;
+  --color-paper: #f4f4f1;
+  --color-ink: #1c2430;
+  --color-soft: #566070;
+  --color-line: #dadcd6;
+  --color-board: #1c2430;
+  --color-board-raised: #262f3c;
+  --color-board-line: #344052;
+  --color-board-soft: #9aa6b6;
+  --color-signal: #ffc72c;
+  --color-go: #3fb27f;
+  --color-go-ink: #1f7a52;
+  --color-short: #f0a35e;
+  --color-short-ink: #a4511a;
+  --color-cat-stay: #4c7bd9;
+  --color-cat-food: #e0a21b;
+  --color-cat-activities: #3fb27f;
+  --color-cat-transport: #9aa6b6;
 
-  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-archivo-black), var(--font-space-grotesk), sans-serif;
-  --font-hand: var(--font-caveat), cursive;
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-script: "Archivo Variable", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", "Noto Sans Malayalam", "Noto Sans Thai",
+    "Noto Sans Arabic", "Noto Sans Sinhala", "Noto Sans Georgian", sans-serif;
+
+  --animate-flip: flip 0.45s ease;
+  --animate-open: open 0.3s ease;
+  --animate-draw: draw 1.2s ease-in-out infinite;
+
+  @keyframes flip {
+    0% {
+      transform: rotateX(90deg);
+      opacity: 0;
+    }
+    100% {
+      transform: rotateX(0);
+      opacity: 1;
+    }
+  }
+  @keyframes open {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes draw {
+    0% {
+      stroke-dashoffset: 1;
+    }
+    60%,
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
 }
 
 body {
-  background: var(--color-cream);
+  background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
 
 ::selection {
-  background: var(--color-mustard);
+  background: var(--color-signal);
+  color: var(--color-ink);
 }
 
-/* Range inputs: thin ink track, ink thumb. */
-input[type="range"] {
-  accent-color: var(--color-ink);
+:focus-visible {
+  outline: 3px solid var(--color-signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Wider, signage-like headings. */
+.font-wide {
+  font-stretch: 112%;
+}
+
+/* Budget slider: thin ink track, signal-yellow thumb. */
+input[type="range"].track {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--color-ink) var(--fill, 30%), var(--color-line) var(--fill, 30%));
+}
+input[type="range"].track::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  border: 3px solid var(--color-ink);
+  cursor: grab;
+}
+input[type="range"].track::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  border: 3px solid var(--color-ink);
+  cursor: grab;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -1,22 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
-import { DESTINATIONS } from "@/data/destinations";
 import { CATEGORIES, CATEGORY_LABELS, inr, presetBudget, scaleBudget, sumBudget, TIER_INFO, tierPerDay } from "@/lib/budget";
-import type { CategoryBudget, Diet, Interest, PartyType, StayType, Tier, TripInput } from "@/lib/types";
-import { Chip, Dot, Field, inputClass, Kicker, OptionCard, primaryButton, secondaryButton, SplitBar, Stepper } from "./ui";
+import type { Diet, Interest, PartyType, StayType, Tier, TripInput } from "@/lib/types";
+import { Chip, Dot, Segmented, SplitBar } from "./ui";
 
-const PARTIES: { id: PartyType; label: string; sub: string; size: number }[] = [
-  { id: "students", label: "Student group", sub: "Hostels, deals, max fun", size: 5 },
-  { id: "group", label: "Friends group", sub: "Split stays and cabs", size: 5 },
-  { id: "couple", label: "Couple", sub: "The two of you", size: 2 },
-  { id: "solo", label: "Solo", sub: "Just you", size: 1 },
-];
-const STAYS: { id: StayType; label: string; sub: string }[] = [
-  { id: "hostel", label: "Hostel", sub: "Cheapest and social" },
-  { id: "hotel", label: "Hotel", sub: "Rooms for two" },
-  { id: "airbnb", label: "Airbnb / homestay", sub: "A whole place for the group" },
+const STAYS: { id: StayType; label: string }[] = [
+  { id: "hostel", label: "Hostel" },
+  { id: "hotel", label: "Hotel" },
+  { id: "airbnb", label: "Airbnb or homestay" },
 ];
 const DIETS: { id: Diet; label: string }[] = [
   { id: "any", label: "Anything" },
@@ -37,353 +30,322 @@ const INTERESTS: { id: Interest; label: string }[] = [
   { id: "shopping", label: "Shopping" },
   { id: "nature", label: "Nature" },
 ];
-const STEPS = [
-  { label: "Who & when", title: "Who's going, and when?" },
-  { label: "Budget", title: "How much do you want to spend?" },
-  { label: "Preferences", title: "How do you like to travel?" },
-  { label: "Destination", title: "Where to?" },
+const SCOPES: { id: TripInput["scope"]; label: string }[] = [
+  { id: "anywhere", label: "Anywhere" },
+  { id: "india", label: "Within India" },
+  { id: "abroad", label: "Abroad" },
 ];
+
+// Who's going, as one list so the sentence always reads naturally.
+type Who = { party: PartyType; travellers: number; label: string };
+const WHO: { group: string; options: Who[] }[] = [
+  {
+    group: "Small",
+    options: [
+      { party: "solo", travellers: 1, label: "Just me" },
+      { party: "couple", travellers: 2, label: "A couple" },
+    ],
+  },
+  { group: "Friends", options: Array.from({ length: 11 }, (_, i) => ({ party: "group" as const, travellers: i + 2, label: `${i + 2} friends` })) },
+  { group: "Students", options: Array.from({ length: 11 }, (_, i) => ({ party: "students" as const, travellers: i + 2, label: `${i + 2} students` })) },
+];
+const whoKey = (party: PartyType, n: number) => `${party}:${n}`;
+
+// The budget slider is curved so the student range (₹3k–30k) gets a third of the track instead of a sliver.
+const MIN = 3000;
+const MAX = 300000;
+const toPos = (v: number) => Math.round(Math.sqrt(Math.min(Math.max((v - MIN) / (MAX - MIN), 0), 1)) * 1000);
+const fromPos = (p: number) => {
+  const raw = MIN + (MAX - MIN) * (p / 1000) ** 2;
+  const step = raw < 50000 ? 500 : raw < 100000 ? 1000 : 5000;
+  return Math.round(raw / step) * step;
+};
+
+const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+const shortDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+/** Underlined, tappable part of the sentence. The real control sits invisibly on top, so it stays accessible. */
+function Slot({ children, control }: { children: ReactNode; control: ReactNode }) {
+  return (
+    <span className="relative inline-block whitespace-nowrap">
+      {control}
+      <span
+        aria-hidden="true"
+        className="inline-flex items-baseline border-b-[3px] border-signal px-0.5 font-extrabold transition peer-hover:bg-signal/25 peer-focus-visible:rounded-sm peer-focus-visible:bg-signal/40 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink"
+      >
+        {children}
+        <svg viewBox="0 0 12 8" className="ml-1.5 h-[0.22em] w-[0.34em] self-center text-soft" aria-hidden="true">
+          <path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+// The control is invisible but its dropdown is not: give it normal text size so the option list isn't headline-sized.
+const overlay = "peer absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none text-base font-normal tracking-normal opacity-0";
+
+export function TripForm({ value, onChange }: { value: TripInput; onChange: (next: TripInput) => void }) {
+  const sliderRef = useRef<HTMLInputElement>(null);
+  const ids = useId();
+  const set = (patch: Partial<TripInput>) => onChange({ ...value, ...patch });
+  const total = sumBudget(value.budget);
+  const city = ORIGIN_AIRPORTS.find((a) => a.code === value.origin)?.city ?? value.origin;
+  const solo = value.travellers === 1;
+  const whoLabel = WHO.flatMap((g) => g.options).find((o) => o.party === value.party && o.travellers === value.travellers)?.label ?? `${value.travellers} friends`;
+
+  const finetuneSummary = [
+    STAYS.find((s) => s.id === value.stay)?.label,
+    value.diet === "any" ? "any food" : DIETS.find((d) => d.id === value.diet)?.label.toLowerCase(),
+    value.interests.length ? `${value.interests.length} interest${value.interests.length > 1 ? "s" : ""}` : null,
+    SCOPES.find((s) => s.id === value.scope)?.label.toLowerCase(),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <div>
+      <h1 className="font-wide max-w-5xl text-[clamp(28px,3.8vw,46px)] font-bold leading-[1.3] tracking-tight text-ink">
+        {!solo && "We're "}
+        <Slot
+          control={
+            <select
+              aria-label="Who's going"
+              className={overlay}
+              value={whoKey(value.party, value.travellers)}
+              onChange={(e) => {
+                const [party, n] = e.target.value.split(":");
+                set({ party: party as PartyType, travellers: Number(n) });
+              }}
+            >
+              {WHO.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.options.map((o) => (
+                    <option key={whoKey(o.party, o.travellers)} value={whoKey(o.party, o.travellers)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          }
+        >
+          {solo ? "Just me" : whoLabel.replace("A couple", "a couple")}
+        </Slot>
+        {solo ? ", leaving " : " leaving "}
+        <Slot
+          control={
+            <select aria-label="Leaving from" className={overlay} value={value.origin} onChange={(e) => set({ origin: e.target.value })}>
+              {ORIGIN_AIRPORTS.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.city}
+                </option>
+              ))}
+            </select>
+          }
+        >
+          {city}
+        </Slot>{" "}
+        on{" "}
+        <Slot
+          control={
+            <input
+              type="date"
+              aria-label="Leaving on"
+              className={overlay}
+              value={value.startDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onClick={(e) => {
+                try {
+                  e.currentTarget.showPicker?.();
+                } catch {
+                  // Some browsers only open the picker from their own icon; the input still works by keyboard.
+                }
+              }}
+              onChange={(e) => e.target.value && set({ startDate: e.target.value })}
+            />
+          }
+        >
+          {shortDate(value.startDate)}
+        </Slot>{" "}
+        for{" "}
+        <Slot
+          control={
+            <select
+              aria-label="Trip length"
+              className={overlay}
+              value={value.days}
+              onChange={(e) => {
+                const days = Number(e.target.value);
+                // Keep the amount they chose; just re-split it for the new length.
+                set({ days, budget: scaleBudget(presetBudget(value.tier, days), total) });
+              }}
+            >
+              {Array.from({ length: 13 }, (_, i) => i + 2).map((d) => (
+                <option key={d} value={d}>
+                  {d} days
+                </option>
+              ))}
+            </select>
+          }
+        >
+          {value.days} days
+        </Slot>
+        , with{" "}
+        <Slot
+          control={
+            <button
+              type="button"
+              aria-label={`Budget ${inr(total)} per person. Change it with the slider`}
+              className={overlay}
+              onClick={() => sliderRef.current?.focus()}
+            />
+          }
+        >
+          {inr(total)}
+        </Slot>
+        {solo ? "." : " each."}
+      </h1>
+      <p className="mt-3 text-[15px] text-soft">Change anything underlined. The board below updates as you go.</p>
+
+      <div className="mt-8 grid max-w-4xl gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr] sm:items-center">
+        <div className="min-w-36">
+          <div className="text-[28px] font-extrabold tabular-nums leading-tight">{inr(total)}</div>
+          <div className="text-sm text-soft">{solo ? "all in" : `each, ${inr(total * value.travellers)} for the group`}</div>
+        </div>
+        <div>
+          <label htmlFor={`${ids}-budget`} className="sr-only">
+            Budget per person
+          </label>
+          <input
+            ref={sliderRef}
+            id={`${ids}-budget`}
+            type="range"
+            min={0}
+            max={1000}
+            step={1}
+            value={toPos(total)}
+            aria-valuetext={`${inr(total)} per person`}
+            onChange={(e) => set({ budget: scaleBudget(value.budget, fromPos(Number(e.target.value))) })}
+            className="track w-full"
+            style={{ ["--fill" as string]: `${toPos(total) / 10}%` }}
+          />
+          <div className="mt-1 flex justify-between text-xs text-soft">
+            <span>₹3,000</span>
+            <span>₹30,000</span>
+            <span>₹3,00,000</span>
+          </div>
+        </div>
+        <div className="text-sm font-semibold text-soft">Travel style</div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Segmented<Tier>
+            label="Travel style"
+            value={value.tier}
+            onChange={(tier) => set({ tier, budget: presetBudget(tier, value.days) })}
+            options={(Object.keys(TIER_INFO) as Tier[]).map((t) => ({ id: t, label: TIER_INFO[t].label }))}
+          />
+          <span className="text-sm text-soft">
+            {TIER_INFO[value.tier].blurb}, about {inr(tierPerDay(value.tier))} a day plus travel
+          </span>
+        </div>
+      </div>
+
+      <details className="group mt-7 max-w-4xl rounded-xl border-[1.5px] border-line bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+          <span>
+            <span className="font-bold">Fine-tune</span>
+            <span className="ml-2 text-sm text-soft">{finetuneSummary}</span>
+          </span>
+          <svg viewBox="0 0 12 8" className="h-2 w-3 shrink-0 text-soft transition group-open:rotate-180" aria-hidden="true">
+            <path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </summary>
+        <div className="grid gap-6 border-t-[1.5px] border-line px-5 py-5 sm:grid-cols-2">
+          <Group label="Where to stay">
+            <Segmented<StayType> label="Where to stay" value={value.stay} onChange={(stay) => set({ stay })} options={STAYS} />
+          </Group>
+          <Group label="Where to look">
+            <Segmented<TripInput["scope"]> label="Where to look" value={value.scope} onChange={(scope) => set({ scope })} options={SCOPES} />
+          </Group>
+          <Group label="What you eat">
+            {DIETS.map((d) => (
+              <Chip key={d.id} active={value.diet === d.id} onClick={() => set({ diet: d.id })}>
+                {d.label}
+              </Chip>
+            ))}
+          </Group>
+          <Group label="What you're into">
+            {INTERESTS.map((i) => (
+              <Chip key={i.id} active={value.interests.includes(i.id)} onClick={() => set({ interests: toggle(value.interests, i.id) })}>
+                {i.label}
+              </Chip>
+            ))}
+          </Group>
+          <Group label="Cuisines you love">
+            {CUISINES.map((c) => (
+              <Chip key={c} active={value.cuisines.includes(c)} onClick={() => set({ cuisines: toggle(value.cuisines, c) })}>
+                {c}
+              </Chip>
+            ))}
+          </Group>
+          <div className="space-y-3 sm:col-span-2">
+            <div className="text-sm font-semibold text-soft">How your {inr(total)} is split</div>
+            <SplitBar parts={CATEGORIES.map((c) => ({ category: c, value: value.budget[c] }))} />
+            <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+              {CATEGORIES.map((c) => (
+                <label key={c} className="block text-sm text-soft">
+                  <span className="flex justify-between">
+                    <span className="inline-flex items-center gap-2">
+                      <Dot category={c} /> {CATEGORY_LABELS[c]}
+                    </span>
+                    <span className="font-semibold tabular-nums text-ink">{inr(value.budget[c])}</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={c === "flights" ? 100000 : 150000}
+                    step={500}
+                    value={value.budget[c]}
+                    onChange={(e) => set({ budget: { ...value.budget, [c]: Number(e.target.value) } })}
+                    className="mt-1 w-full accent-ink"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function Group({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="text-sm font-semibold text-soft">{label}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
 
 const defaultStart = () => {
   const d = new Date();
   d.setDate(d.getDate() + 30);
   return d.toISOString().slice(0, 10);
 };
-const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
 
-export function TripForm({ onSubmit, busy, initial }: { onSubmit: (input: TripInput) => void; busy: boolean; initial?: TripInput | null }) {
-  const [step, setStep] = useState(0);
-  const [party, setParty] = useState<PartyType>(initial?.party ?? "students");
-  const [travellers, setTravellers] = useState(initial?.travellers ?? 5);
-  const [origin, setOrigin] = useState(initial?.origin ?? "DEL");
-  const [startDate, setStartDate] = useState(initial?.startDate ?? defaultStart);
-  const [days, setDays] = useState(initial?.days ?? 5);
-  const [tier, setTier] = useState<Tier>(initial?.tier ?? "budget");
-  const [budget, setBudget] = useState<CategoryBudget>(() => initial?.budget ?? presetBudget("budget", 5));
-  const [customSplit, setCustomSplit] = useState(false);
-  const [stay, setStay] = useState<StayType>(initial?.stay ?? "hostel");
-  const [diet, setDiet] = useState<Diet>(initial?.diet ?? "vegetarian");
-  const [cuisines, setCuisines] = useState<string[]>(initial?.cuisines ?? ["Indian", "Local food"]);
-  const [interests, setInterests] = useState<Interest[]>(initial?.interests ?? ["beach", "nightlife", "adventure"]);
-  const [mode, setMode] = useState<"suggest" | "pick">(initial?.destinationId ? "pick" : "suggest");
-  const [scope, setScope] = useState<TripInput["scope"]>(initial?.scope ?? "anywhere");
-  const [destinationId, setDestinationId] = useState<string | null>(initial?.destinationId ?? null);
-
-  const total = sumBudget(budget);
-  const isGroup = party === "students" || party === "group";
-
-  // Changing the style or trip length starts the budget again from that style's preset.
-  const reset = (t: Tier, d: number) => setBudget(presetBudget(t, d));
-  const pickDays = (d: number) => {
-    setDays(d);
-    reset(tier, d);
+export function defaultTrip(): TripInput {
+  return {
+    origin: "DEL",
+    startDate: defaultStart(),
+    days: 5,
+    party: "students",
+    travellers: 5,
+    tier: "budget",
+    budget: presetBudget("budget", 5),
+    stay: "hostel",
+    diet: "any",
+    cuisines: [],
+    interests: [],
+    scope: "anywhere",
   };
-
-  const submit = () =>
-    onSubmit({
-      origin,
-      startDate,
-      days,
-      party,
-      travellers,
-      tier,
-      budget,
-      stay,
-      diet,
-      cuisines,
-      interests,
-      scope,
-      destinationId: mode === "pick" && destinationId ? destinationId : undefined,
-    });
-
-  const canContinue = step !== 3 || mode === "suggest" || destinationId !== null;
-  const last = step === STEPS.length - 1;
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-[28px] border-[1.5px] border-line bg-white p-6 shadow-[0_4px_18px_rgba(51,41,31,0.05)] sm:p-10">
-        {/* Progress */}
-        <div className="mb-8 flex items-center justify-between gap-6">
-          <div>
-            <Kicker>
-              Step {String(step + 1).padStart(2, "0")} / 04 · {STEPS[step].label}
-            </Kicker>
-            <h2 className="mt-2 font-display text-2xl leading-tight text-ink sm:text-3xl">{STEPS[step].title}</h2>
-          </div>
-          <ol className="hidden shrink-0 gap-1.5 sm:flex" aria-label="Progress">
-            {STEPS.map((s, i) => (
-              <li key={s.label}>
-                <button
-                  type="button"
-                  onClick={() => i < step && setStep(i)}
-                  disabled={i > step}
-                  aria-label={s.label}
-                  className={`block h-1.5 rounded-full transition-all ${i === step ? "w-8 bg-orange" : i < step ? "w-4 bg-ink" : "w-4 bg-line"}`}
-                />
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {step === 0 && (
-          <div className="space-y-9">
-            <Field label="Who's going?">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {PARTIES.map((p) => (
-                  <OptionCard
-                    key={p.id}
-                    active={party === p.id}
-                    onClick={() => {
-                      setParty(p.id);
-                      setTravellers(p.size);
-                    }}
-                    title={p.label}
-                    subtitle={p.sub}
-                  />
-                ))}
-              </div>
-              {isGroup && (
-                <div className="flex flex-wrap items-center gap-4 pt-1">
-                  <span className="text-sm text-muted">How many of you?</span>
-                  <Stepper value={travellers} onChange={setTravellers} min={3} max={12} suffix="people" />
-                </div>
-              )}
-            </Field>
-
-            <div className="grid gap-6 sm:grid-cols-2">
-              <Field label="Flying from">
-                <select value={origin} onChange={(e) => setOrigin(e.target.value)} className={inputClass}>
-                  {ORIGIN_AIRPORTS.map((a) => (
-                    <option key={a.code} value={a.code}>
-                      {a.city} ({a.code})
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Leaving on">
-                <input
-                  type="date"
-                  value={startDate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => e.target.value && setStartDate(e.target.value)}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-
-            <Field label="How long?">
-              <div className="flex flex-wrap items-center gap-3">
-                <Stepper value={days} onChange={pickDays} min={2} max={14} suffix="days" />
-                <div className="flex flex-wrap gap-2">
-                  {[3, 5, 7, 10].map((d) => (
-                    <Chip key={d} active={days === d} onClick={() => pickDays(d)}>
-                      {d === 3 ? "Long weekend" : `${d} days`}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-            </Field>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="space-y-8">
-            <div className="grid gap-3 sm:grid-cols-3">
-              {(Object.keys(TIER_INFO) as Tier[]).map((t) => (
-                <OptionCard
-                  key={t}
-                  active={tier === t}
-                  onClick={() => {
-                    setTier(t);
-                    reset(t, days);
-                  }}
-                  title={TIER_INFO[t].label}
-                  subtitle={`${TIER_INFO[t].blurb}. ~${inr(tierPerDay(t))}/day + flights`}
-                />
-              ))}
-            </div>
-
-            <div className="rounded-2xl bg-cream p-5 sm:p-6">
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <div className="text-sm text-muted">Per person, everything included</div>
-                  <div className="font-display text-4xl tabular-nums text-ink">{inr(total)}</div>
-                </div>
-                {travellers > 1 && <div className="text-sm text-muted">{inr(total * travellers)} for all {travellers}</div>}
-              </div>
-              <input
-                type="range"
-                min={5000}
-                max={300000}
-                step={1000}
-                value={Math.min(total, 300000)}
-                onChange={(e) => setBudget(scaleBudget(budget, Number(e.target.value)))}
-                className="mt-5 w-full"
-                aria-label="Budget per person"
-              />
-              <div className="flex justify-between text-xs text-muted">
-                <span>₹5k</span>
-                <span>₹3L</span>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                <SplitBar parts={CATEGORIES.map((c) => ({ category: c, value: budget[c] }))} />
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-ink-soft">
-                  {CATEGORIES.map((c) => (
-                    <span key={c} className="inline-flex items-center gap-1.5">
-                      <Dot category={c} />
-                      {CATEGORY_LABELS[c]} <span className="tabular-nums text-ink">{inr(budget[c])}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setCustomSplit(!customSplit)}
-                className="mt-5 text-sm font-semibold text-ink underline decoration-mustard decoration-2 underline-offset-4 hover:text-orange"
-              >
-                {customSplit ? "Hide the split" : "Adjust how it's split"}
-              </button>
-              {customSplit && (
-                <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-                  {CATEGORIES.map((c) => (
-                    <label key={c} className="block text-sm text-ink-soft">
-                      <span className="flex justify-between">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Dot category={c} /> {CATEGORY_LABELS[c]}
-                        </span>
-                        <span className="font-semibold tabular-nums text-ink">{inr(budget[c])}</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={c === "flights" ? 100000 : 150000}
-                        step={500}
-                        value={budget[c]}
-                        onChange={(e) => setBudget({ ...budget, [c]: Number(e.target.value) })}
-                        className="w-full"
-                      />
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-9">
-            <Field label="Where do you want to stay?">
-              <div className="grid gap-3 sm:grid-cols-3">
-                {STAYS.map((s) => (
-                  <OptionCard key={s.id} active={stay === s.id} onClick={() => setStay(s.id)} title={s.label} subtitle={s.sub} />
-                ))}
-              </div>
-            </Field>
-            <Field label="What do you eat?" hint="We'll make sure there's food for everyone.">
-              <div className="flex flex-wrap gap-2">
-                {DIETS.map((d) => (
-                  <Chip key={d.id} active={diet === d.id} onClick={() => setDiet(d.id)}>
-                    {d.label}
-                  </Chip>
-                ))}
-              </div>
-            </Field>
-            <Field label="Cuisines you love" hint="Pick any.">
-              <div className="flex flex-wrap gap-2">
-                {CUISINES.map((c) => (
-                  <Chip key={c} active={cuisines.includes(c)} onClick={() => setCuisines(toggle(cuisines, c))}>
-                    {c}
-                  </Chip>
-                ))}
-              </div>
-            </Field>
-            <Field label="What are you into?" hint="Pick a few. We'll plan around them.">
-              <div className="flex flex-wrap gap-2">
-                {INTERESTS.map((i) => (
-                  <Chip key={i.id} active={interests.includes(i.id)} onClick={() => setInterests(toggle(interests, i.id))}>
-                    {i.label}
-                  </Chip>
-                ))}
-              </div>
-            </Field>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-7">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <OptionCard
-                active={mode === "suggest"}
-                onClick={() => setMode("suggest")}
-                title="Suggest places for me"
-                subtitle="See where your budget can take you"
-              />
-              <OptionCard active={mode === "pick"} onClick={() => setMode("pick")} title="I know where I'm going" subtitle="Pick a destination" />
-            </div>
-
-            {mode === "suggest" ? (
-              <Field label="Anywhere in particular?">
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      ["anywhere", "Anywhere"],
-                      ["india", "Within India"],
-                      ["abroad", "Abroad"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <Chip key={id} active={scope === id} onClick={() => setScope(id)}>
-                      {label}
-                    </Chip>
-                  ))}
-                </div>
-              </Field>
-            ) : (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-                {DESTINATIONS.map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => setDestinationId(d.id)}
-                    aria-pressed={destinationId === d.id}
-                    className={`rounded-2xl border-[1.5px] px-4 py-3 text-left transition ${
-                      destinationId === d.id ? "border-ink bg-ink text-cream" : "border-line bg-white hover:border-muted/50"
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold leading-tight">{d.name}</span>
-                    <span className={`block text-xs ${destinationId === d.id ? "text-cream/70" : "text-muted"}`}>{d.country}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Summary + navigation */}
-      <div className="sticky bottom-0 -mx-4 border-t-[1.5px] border-line bg-cream/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
-        <div className="flex items-center justify-between gap-3">
-          <p className="hidden text-sm text-muted sm:block">
-            {travellers} {travellers === 1 ? "person" : "people"} · {days} days · <span className="font-semibold text-ink">{inr(total)}</span> per person
-          </p>
-          <div className="flex w-full gap-2 sm:w-auto">
-            {step > 0 && (
-              <button type="button" onClick={() => setStep(step - 1)} className={secondaryButton}>
-                Back
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={busy || !canContinue}
-              onClick={() => (last ? submit() : setStep(step + 1))}
-              className={`${primaryButton} flex-1 sm:flex-none`}
-            >
-              {!last ? "Continue →" : mode === "suggest" ? "Show me where I can go →" : destinationId ? "Plan my trip →" : "Pick a destination"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }

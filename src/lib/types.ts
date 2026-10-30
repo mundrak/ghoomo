@@ -42,6 +42,10 @@ export interface Activity {
 export interface Destination {
   id: string;
   name: string;
+  /** The place's name in its local script, shown beside the English name. */
+  localName?: string;
+  /** BCP 47 language of localName, so screen readers and fonts handle it properly. */
+  localLang?: string;
   country: string;
   international: boolean;
   airport: string;

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { ORIGIN_AIRPORTS } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, TIER_INFO } from "@/lib/budget";
 import type { Itinerary } from "@/lib/itinerary";
 import type { CategoryBudget, Destination, FlightQuote, StayQuote, TripInput } from "@/lib/types";
-import { Badge, Dot, inputClass, Kicker, Meter, primaryButton, Spinner } from "./ui";
+import { Dot, inputClass, LocalName, Meter, PlaneIcon, PriceSource, primaryButton, Spinner } from "./ui";
 
 const QUICK_CHANGES = ["Make it cheaper", "More nightlife", "More veg food spots", "Slower pace", "Add one splurge"];
 const MAX_CHANGE_CHARS = 300;
@@ -23,7 +24,7 @@ function planned(itinerary: Itinerary, flight: FlightQuote, stay: StayQuote, day
   return spent;
 }
 
-const card = "rounded-[24px] border-[1.5px] border-line bg-white p-6";
+const panel = "rounded-xl border-[1.5px] border-line bg-white";
 
 export function ItineraryView({
   input,
@@ -49,7 +50,12 @@ export function ItineraryView({
   const total = CATEGORIES.reduce((s, c) => s + spent[c], 0);
   const budgetTotal = CATEGORIES.reduce((s, c) => s + input.budget[c], 0);
   const canEdit = meta.aiAvailable && (meta.editsLeft ?? 1) > 0;
-  const startLabel = new Date(`${input.startDate}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const city = ORIGIN_AIRPORTS.find((a) => a.code === input.origin)?.city ?? input.origin;
+  const dateOf = (offset: number) => {
+    const day = new Date(`${input.startDate}T00:00:00`);
+    day.setDate(day.getDate() + offset);
+    return day.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  };
 
   const send = (text: string) => {
     if (!text.trim() || busy || !canEdit) return;
@@ -59,92 +65,103 @@ export function ItineraryView({
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-[28px] bg-ink px-6 py-8 text-cream sm:px-10 sm:py-10">
-        <p className="font-hand text-2xl text-mustard">{meta.ai ? "planned just for you" : "a starter plan"}</p>
-        <h2 className="mt-1 font-display text-3xl leading-tight sm:text-5xl">{itinerary.title}</h2>
-        <p className="mt-3 max-w-2xl text-cream/75">{itinerary.summary}</p>
-        <div className="mt-6 flex flex-wrap gap-2 text-sm">
-          {[
-            `${startLabel} · ${input.days} days`,
-            `${input.travellers} ${input.travellers === 1 ? "person" : "people"}`,
-            `${TIER_INFO[input.tier].label} style`,
-          ].map((t) => (
-            <span key={t} className="rounded-full border border-cream/20 px-3.5 py-1 text-cream/90">
-              {t}
-            </span>
-          ))}
+      <header className="rounded-2xl bg-board px-6 py-8 text-white sm:px-9 sm:py-10">
+        <div className="flex flex-wrap items-center gap-3">
+          <LocalName d={d} className="text-2xl text-signal" />
+          <span className="rounded-md border border-board-line px-2 py-0.5 text-xs font-semibold text-board-soft">
+            {meta.ai ? "Planned by AI" : "Starter plan"}
+          </span>
         </div>
+        <h1 className="font-wide mt-2 text-3xl font-bold leading-tight sm:text-5xl">{itinerary.title}</h1>
+        <p className="mt-3 max-w-2xl text-[#d6dde7]">{itinerary.summary}</p>
+        <dl className="mt-6 flex flex-wrap gap-x-9 gap-y-3 text-sm">
+          {[
+            ["From", city],
+            ["Leaving", dateOf(0)],
+            ["Trip", `${input.days} days`],
+            ["Travellers", input.travellers === 1 ? "Just you" : `${input.travellers} people`],
+            ["Style", TIER_INFO[input.tier].label],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <dt className="text-board-soft">{k}</dt>
+              <dd className="font-semibold">{v}</dd>
+            </div>
+          ))}
+        </dl>
       </header>
 
-      {meta.notice && <div className="rounded-2xl bg-butter px-5 py-4 text-sm text-ink">{meta.notice}</div>}
+      {meta.notice && <div className="rounded-xl border-[1.5px] border-signal bg-signal/15 px-5 py-4 text-sm text-ink">{meta.notice}</div>}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              {
-                href: flight.bookingUrl,
-                label: `Flights · ${input.origin} ⇄ ${d.airport}`,
-                live: flight.source === "live",
-                price: flight.price,
-                unit: "per person, return",
-                note: flight.airline ? `${flight.airline} · ${flight.transfers ? `${flight.transfers} stop(s)` : "direct"}` : undefined,
-                cta: "Check flights",
-              },
-              {
-                href: stay.bookingUrl,
-                label: `Stay · ${itinerary.stayRecommendation.area}`,
-                live: stay.source === "live",
-                price: stay.perPersonNight,
-                unit: "per person / night",
-                note: stay.name ?? itinerary.stayRecommendation.why,
-                cta: "See places to stay",
-              },
-            ].map((x) => (
-              <a key={x.label} href={x.href} target="_blank" rel="noopener noreferrer" className={`${card} group block transition hover:border-ink`}>
-                <div className="flex items-center justify-between gap-2 text-sm text-muted">
-                  {x.label} <Badge live={x.live} />
-                </div>
-                <p className="mt-2">
-                  <span className="font-display text-2xl tabular-nums text-ink">{inr(x.price)}</span>
-                  <span className="text-sm text-muted"> {x.unit}</span>
+            <a href={flight.bookingUrl} target="_blank" rel="noopener noreferrer" className={`${panel} group block p-5 transition hover:border-ink`}>
+              <div className="flex items-center justify-between gap-2 text-sm text-soft">
+                <span className="inline-flex items-center gap-2 font-semibold text-ink">
+                  {input.origin} <PlaneIcon className="text-soft" /> {d.airport}
+                </span>
+                <PriceSource kind="flight" live={flight.source === "live"} />
+              </div>
+              <p className="mt-3">
+                <span className="text-2xl font-extrabold tabular-nums">{inr(flight.price)}</span>
+                <span className="text-sm text-soft"> per person, return</span>
+              </p>
+              {flight.airline && (
+                <p className="text-sm text-soft">
+                  {flight.airline}, {flight.transfers ? `${flight.transfers} stop${flight.transfers > 1 ? "s" : ""}` : "direct"}
                 </p>
-                {x.note && <p className="mt-0.5 text-sm text-ink-soft">{x.note}</p>}
-                <p className="mt-4 text-sm font-semibold text-ink underline decoration-mustard decoration-2 underline-offset-4 group-hover:text-orange">
-                  {x.cta} →
-                </p>
-              </a>
-            ))}
+              )}
+              <p className="mt-4 text-sm font-semibold underline decoration-signal decoration-2 underline-offset-4 group-hover:decoration-ink">Check flights</p>
+            </a>
+            <a href={stay.bookingUrl} target="_blank" rel="noopener noreferrer" className={`${panel} group block p-5 transition hover:border-ink`}>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-semibold">Stay in {itinerary.stayRecommendation.area}</span>
+                <PriceSource kind="stay" live={stay.source === "live"} />
+              </div>
+              <p className="mt-3">
+                <span className="text-2xl font-extrabold tabular-nums">{inr(stay.perPersonNight)}</span>
+                <span className="text-sm text-soft"> per person, per night</span>
+              </p>
+              <p className="text-sm text-soft">{stay.name ?? itinerary.stayRecommendation.why}</p>
+              <p className="mt-4 text-sm font-semibold underline decoration-signal decoration-2 underline-offset-4 group-hover:decoration-ink">
+                See places to stay
+              </p>
+            </a>
           </div>
-          {d.arrivalNote && <p className="px-1 text-sm text-ink-soft">Getting there: {d.arrivalNote}</p>}
+          {d.arrivalNote && <p className="px-1 text-[15px] text-soft">Getting there: {d.arrivalNote}</p>}
 
-          <ol className="space-y-4">
+          <ol className={`${panel} divide-y-[1.5px] divide-line`}>
             {itinerary.days.map((day) => {
               const dayCost = day.items.reduce((s, x) => s + x.costPerPerson, 0);
+              // Starter plans name the day after its main activity, so don't print it twice.
+              const showTitle = !day.items.some((x) => x.title === day.title);
               return (
-                <li key={day.day} className={card}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div>
-                      <Kicker>Day {String(day.day).padStart(2, "0")}</Kicker>
-                      <h3 className="mt-1 text-lg font-bold text-ink">{day.title}</h3>
-                    </div>
-                    <span className="shrink-0 text-sm tabular-nums text-muted">{inr(dayCost)}</span>
+                <li key={day.day} className="grid gap-x-6 gap-y-3 p-5 sm:grid-cols-[120px_minmax(0,1fr)] sm:p-6">
+                  <div>
+                    <div className="font-wide text-lg font-extrabold">Day {day.day}</div>
+                    <div className="text-sm text-soft">{dateOf(day.day - 1)}</div>
+                    <div className="mt-1 text-sm tabular-nums text-soft">{inr(dayCost)}</div>
                   </div>
-                  <ul className="mt-4 space-y-3.5 border-l-[1.5px] border-line pl-5">
-                    {day.items.map((item, i) => (
-                      <li key={i} className="relative">
-                        <span className="absolute -left-[25px] top-1.5 ring-4 ring-white">
-                          <Dot category={item.category} />
-                        </span>
-                        <div className="flex justify-between gap-3">
-                          <span className="font-semibold text-ink">{item.title}</span>
-                          <span className="shrink-0 text-sm tabular-nums text-ink-soft">{item.costPerPerson ? inr(item.costPerPerson) : "free"}</span>
-                        </div>
-                        <p className="text-xs text-muted">{item.time}</p>
-                        {item.details && <p className="mt-0.5 text-sm text-ink-soft">{item.details}</p>}
-                      </li>
-                    ))}
-                  </ul>
+                  <div>
+                    {showTitle && <h3 className="mb-3 text-lg font-bold">{day.title}</h3>}
+                    <ul className="space-y-3.5">
+                      {day.items.map((item, i) => (
+                        <li key={i} className="flex gap-3">
+                          <span className="mt-1.5">
+                            <Dot category={item.category} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex justify-between gap-3">
+                              <span className="font-semibold">{item.title}</span>
+                              <span className="shrink-0 text-sm tabular-nums text-soft">{item.costPerPerson ? inr(item.costPerPerson) : "free"}</span>
+                            </div>
+                            <p className="text-sm text-soft">{item.time}</p>
+                            {item.details && <p className="mt-0.5 text-[15px]">{item.details}</p>}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </li>
               );
             })}
@@ -158,12 +175,12 @@ export function ItineraryView({
             ] as const
           ).map(([title, tips]) =>
             tips.length ? (
-              <section key={title} className={card}>
-                <h3 className="font-bold text-ink">{title}</h3>
-                <ul className="mt-2 space-y-1 text-sm text-ink-soft">
+              <section key={title} className={`${panel} p-5 sm:p-6`}>
+                <h2 className="font-bold">{title}</h2>
+                <ul className="mt-2 space-y-1.5 text-[15px]">
                   {tips.map((t) => (
-                    <li key={t} className="flex gap-2">
-                      <span className="text-orange">→</span>
+                    <li key={t} className="flex gap-2.5">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
                       {t}
                     </li>
                   ))}
@@ -173,29 +190,29 @@ export function ItineraryView({
           )}
         </div>
 
-        <aside className="order-first space-y-4 lg:sticky lg:top-24 lg:order-none lg:self-start">
-          <div className={card}>
-            <Kicker>Budget tracker · per person</Kicker>
-            <p className="mt-3">
-              <span className="font-display text-3xl tabular-nums text-ink">{inr(total)}</span>
-              <span className="text-muted"> of {inr(budgetTotal)}</span>
+        <aside className="order-first space-y-4 lg:sticky lg:top-6 lg:order-none lg:self-start">
+          <div className={`${panel} p-5 sm:p-6`}>
+            <h2 className="text-sm font-semibold text-soft">Budget tracker, per person</h2>
+            <p className="mt-2">
+              <span className="text-3xl font-extrabold tabular-nums">{inr(total)}</span>
+              <span className="text-soft"> of {inr(budgetTotal)}</span>
             </p>
             <div className="mt-3">
               <Meter used={total} limit={budgetTotal} />
             </div>
-            <p className={`mt-2 text-sm font-semibold ${total > budgetTotal ? "text-orange" : "text-ink-soft"}`}>
+            <p className={`mt-2 text-sm font-semibold ${total > budgetTotal ? "text-short-ink" : "text-go-ink"}`}>
               {total > budgetTotal ? `${inr(total - budgetTotal)} over budget` : `${inr(budgetTotal - total)} left to play with`}
             </p>
-            {input.travellers > 1 && <p className="text-xs text-muted">{inr(total * input.travellers)} for the whole group</p>}
+            {input.travellers > 1 && <p className="text-sm text-soft">{inr(total * input.travellers)} for the group</p>}
             <div className="mt-5 space-y-3.5">
               {CATEGORIES.map((c) => (
                 <div key={c} className="space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="inline-flex items-center gap-2 text-ink-soft">
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="inline-flex items-center gap-2 text-soft">
                       <Dot category={c} /> {CATEGORY_LABELS[c]}
                     </span>
-                    <span className={`tabular-nums ${spent[c] > input.budget[c] ? "font-semibold text-orange" : "text-ink"}`}>
-                      {inr(spent[c])} <span className="text-muted">/ {inr(input.budget[c])}</span>
+                    <span className={`tabular-nums ${spent[c] > input.budget[c] ? "font-semibold text-short-ink" : ""}`}>
+                      {inr(spent[c])} <span className="text-soft">of {inr(input.budget[c])}</span>
                     </span>
                   </div>
                   <Meter used={spent[c]} limit={input.budget[c]} />
@@ -204,61 +221,65 @@ export function ItineraryView({
             </div>
           </div>
 
-          <div className={card}>
-            <div className="flex items-baseline justify-between gap-2">
-              <h3 className="font-bold text-ink">Change the plan</h3>
-              {meta.aiAvailable && meta.editsLeft !== undefined && <span className="text-xs text-muted">{meta.editsLeft} edits left today</span>}
-            </div>
-            {!meta.aiAvailable ? (
-              <p className="mt-2 text-sm text-ink-soft">Editing by chat is coming soon.</p>
-            ) : !canEdit ? (
-              <p className="mt-2 text-sm text-ink-soft">You&apos;ve used today&apos;s free edits. More tomorrow.</p>
-            ) : (
-              <>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {QUICK_CHANGES.map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => send(q)}
-                      disabled={busy}
-                      className="rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-semibold text-ink-soft transition hover:border-ink disabled:opacity-40"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-                <form
-                  className="mt-3 space-y-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    send(change);
-                  }}
-                >
-                  <textarea
-                    value={change}
-                    onChange={(e) => setChange(e.target.value.slice(0, MAX_CHANGE_CHARS))}
-                    rows={3}
-                    placeholder="Swap day 3 for a beach day, add a rooftop dinner on the last night…"
-                    className={inputClass}
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs tabular-nums text-muted">
-                      {change.length}/{MAX_CHANGE_CHARS}
-                    </span>
-                    <button type="submit" disabled={busy || !change.trim()} className={`${primaryButton} px-5 py-2 text-sm`}>
-                      {busy ? (
-                        <>
-                          <Spinner /> Updating…
-                        </>
-                      ) : (
-                        "Update plan"
-                      )}
-                    </button>
+          {meta.aiAvailable && (
+            <div className={`${panel} p-5 sm:p-6`}>
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="font-bold">Change the plan</h2>
+                {meta.editsLeft !== undefined && <span className="text-xs text-soft">{meta.editsLeft} edits left today</span>}
+              </div>
+              {!canEdit ? (
+                <p className="mt-2 text-sm text-soft">You&apos;ve used today&apos;s free edits. More tomorrow.</p>
+              ) : (
+                <>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {QUICK_CHANGES.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => send(q)}
+                        disabled={busy}
+                        className="rounded-lg border-[1.5px] border-line px-2.5 py-1 text-sm font-semibold text-soft transition hover:border-ink hover:text-ink disabled:opacity-50"
+                      >
+                        {q}
+                      </button>
+                    ))}
                   </div>
-                </form>
-              </>
-            )}
-          </div>
+                  <form
+                    className="mt-3 space-y-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      send(change);
+                    }}
+                  >
+                    <label htmlFor="change" className="sr-only">
+                      What should change?
+                    </label>
+                    <textarea
+                      id="change"
+                      value={change}
+                      onChange={(e) => setChange(e.target.value.slice(0, MAX_CHANGE_CHARS))}
+                      rows={3}
+                      placeholder="Swap day 3 for a beach day, add a rooftop dinner on the last night"
+                      className={inputClass}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs tabular-nums text-soft">
+                        {change.length}/{MAX_CHANGE_CHARS}
+                      </span>
+                      <button type="submit" disabled={busy || !change.trim()} className={`${primaryButton} px-4 py-2 text-sm`}>
+                        {busy ? (
+                          <>
+                            <Spinner /> Updating
+                          </>
+                        ) : (
+                          "Update plan"
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          )}
         </aside>
       </div>
     </div>
