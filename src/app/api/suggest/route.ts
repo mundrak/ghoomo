@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { DESTINATIONS } from "@/data/destinations";
 import { estimateCost, scoreDestination } from "@/lib/budget";
+import { skyscannerUrl } from "@/lib/links";
 import { quoteFlight } from "@/lib/providers/flights";
 import type { Suggestion } from "@/lib/types";
 import { TripInputSchema } from "@/lib/validate";
 
+// Live fares are only fetched for the best matches, to keep calls to the fare provider down.
+const LIVE_FARES_FOR = 10;
+
 export async function POST(req: Request) {
-  const parsed = TripInputSchema.safeParse(await req.json());
+  const parsed = TripInputSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Some trip details look wrong. Please check the form." }, { status: 400 });
   const input = parsed.data;
 
@@ -14,23 +18,27 @@ export async function POST(req: Request) {
     input.scope === "india" ? !d.international : input.scope === "abroad" ? d.international : true,
   );
 
-  // Rank on estimates first, then fetch live fares only for the shortlist.
+  // Rank everything on estimates first, then fetch live fares for the shortlist only.
   const rough = candidates
     .map((d) => {
-      const cost = estimateCost(d, input, { price: d.flightEstimate, source: "estimate", bookingUrl: "" });
-      return { d, ...scoreDestination(d, input, cost) };
+      const flight = { price: input.origin === d.airport ? 0 : d.flightEstimate, source: "estimate" as const, bookingUrl: "" };
+      const cost = estimateCost(d, input, flight);
+      return { d, flight, cost, ...scoreDestination(d, input, cost) };
     })
-    .sort((x, y) => y.fitScore - x.fitScore)
-    .slice(0, 8);
+    .sort((x, y) => y.fitScore - x.fitScore);
 
   const suggestions: Suggestion[] = await Promise.all(
-    rough.map(async ({ d }) => {
-      const flight = await quoteFlight(input, d);
-      const cost = estimateCost(d, input, flight);
-      return { destination: d, flight, cost, ...scoreDestination(d, input, cost) };
+    rough.map(async (r, i) => {
+      if (i >= LIVE_FARES_FOR) {
+        const { d, ...rest } = r;
+        return { destination: d, ...rest, flight: { ...r.flight, bookingUrl: skyscannerUrl(input, d) } };
+      }
+      const flight = await quoteFlight(input, r.d);
+      const cost = estimateCost(r.d, input, flight);
+      return { destination: r.d, flight, cost, ...scoreDestination(r.d, input, cost) };
     }),
   );
 
   suggestions.sort((x, y) => y.fitScore - x.fitScore);
-  return NextResponse.json({ suggestions: suggestions.slice(0, 6) });
+  return NextResponse.json({ suggestions });
 }

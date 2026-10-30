@@ -16,6 +16,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "goa",
     name: "Goa",
+    localName: "गोंय",
+    localLang: "kok",
     country: "India",
     international: false,
     airport: "GOI",
@@ -42,6 +44,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "manali",
     name: "Manali & Kasol",
+    localName: "मनाली",
+    localLang: "hi",
     country: "India",
     international: false,
     airport: "IXC",
@@ -68,6 +72,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "rishikesh",
     name: "Rishikesh",
+    localName: "ऋषिकेश",
+    localLang: "hi",
     country: "India",
     international: false,
     airport: "DED",
@@ -94,6 +100,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "jaipur-udaipur",
     name: "Jaipur & Udaipur",
+    localName: "जयपुर, उदयपुर",
+    localLang: "hi",
     country: "India",
     international: false,
     airport: "JAI",
@@ -120,6 +128,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "kerala",
     name: "Kerala (Kochi, Munnar, Alleppey)",
+    localName: "കേരളം",
+    localLang: "ml",
     country: "India",
     international: false,
     airport: "COK",
@@ -145,6 +155,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "leh",
     name: "Leh-Ladakh",
+    localName: "लेह-लद्दाख",
+    localLang: "hi",
     country: "India",
     international: false,
     airport: "IXL",
@@ -194,6 +206,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "thailand",
     name: "Bangkok & Phuket",
+    localName: "กรุงเทพฯ, ภูเก็ต",
+    localLang: "th",
     country: "Thailand",
     international: true,
     airport: "BKK",
@@ -219,6 +233,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "vietnam",
     name: "Hanoi & Ha Long Bay",
+    localName: "Hà Nội",
+    localLang: "vi",
     country: "Vietnam",
     international: true,
     airport: "HAN",
@@ -243,6 +259,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "dubai",
     name: "Dubai",
+    localName: "دبي",
+    localLang: "ar",
     country: "UAE",
     international: true,
     airport: "DXB",
@@ -268,6 +286,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "sri-lanka",
     name: "Sri Lanka",
+    localName: "ශ්‍රී ලංකාව",
+    localLang: "si",
     country: "Sri Lanka",
     international: true,
     airport: "CMB",
@@ -292,6 +312,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "nepal",
     name: "Kathmandu & Pokhara",
+    localName: "काठमाडौं, पोखरा",
+    localLang: "ne",
     country: "Nepal",
     international: true,
     airport: "KTM",
@@ -317,6 +339,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "singapore",
     name: "Singapore",
+    localName: "சிங்கப்பூர்",
+    localLang: "ta",
     country: "Singapore",
     international: true,
     airport: "SIN",
@@ -366,6 +390,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "georgia",
     name: "Tbilisi & Kazbegi",
+    localName: "თბილისი",
+    localLang: "ka",
     country: "Georgia",
     international: true,
     airport: "TBS",

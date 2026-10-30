@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
-import { Archivo_Black, Caveat, Space_Grotesk } from "next/font/google";
+// Self-hosted fonts, so builds don't depend on reaching Google Fonts.
+import "@fontsource-variable/archivo/wdth.css";
+// Local-script place names. Each file covers one script and only downloads when that script is on screen.
+import "@fontsource/noto-sans-devanagari/600.css";
+import "@fontsource/noto-sans-kannada/600.css";
+import "@fontsource/noto-sans-tamil/600.css";
+import "@fontsource/noto-sans-malayalam/600.css";
+import "@fontsource/noto-sans-thai/600.css";
+import "@fontsource/noto-sans-arabic/600.css";
+import "@fontsource/noto-sans-sinhala/600.css";
+import "@fontsource/noto-sans-georgian/600.css";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" });
-const archivoBlack = Archivo_Black({ subsets: ["latin"], weight: "400", variable: "--font-archivo-black" });
-const caveat = Caveat({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-caveat" });
-
 export const metadata: Metadata = {
-  title: "ghoomo · trips planned around your budget",
-  description: "Tell us your budget. We'll show you where you can go and plan every day of it. A side project by khushi.",
+  title: "ghoomo: trips planned around your budget",
+  description: "Tell us who's going and what each of you can spend. See where you can go, and plan every day of it. A side project by khushi.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${archivoBlack.variable} ${caveat.variable}`}>
+    <html lang="en">
       <body className="antialiased">{children}</body>
     </html>
   );
