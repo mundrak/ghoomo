@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, sumBudget } from "@/lib/budget";
-import { travelMode } from "@/lib/travel";
+import { cautionFor } from "@/lib/budget";
+import { fareDateNote, travelMode } from "@/lib/travel";
 import type { FlightQuote, Suggestion, TripInput } from "@/lib/types";
+import { track } from "@/lib/track";
 import { Dot, LocalName, ModeIcon, PriceSource, primaryButton, Spinner, SplitBar } from "./ui";
 
 const FIRST_ROWS = 8;
@@ -115,7 +117,10 @@ export function Suggestions({
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={`pass-${d.id}`}
-                onClick={() => setOpen(isOpen ? null : d.id)}
+                onClick={() => {
+                  if (!isOpen) track("pass_opened");
+                  setOpen(isOpen ? null : d.id);
+                }}
                 className={`grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-5 py-3.5 text-left transition hover:bg-board-raised md:grid-cols-[minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)] md:items-center md:px-7 ${
                   isOpen ? "bg-board-raised" : ""
                 }`}
@@ -124,6 +129,7 @@ export function Suggestions({
                   <LocalName d={d} className="text-[21px] leading-snug text-signal" />
                   <span className="font-wide text-lg font-bold">{d.name}</span>
                   {d.international && d.country !== d.name && <span className="text-sm text-board-soft">{d.country}</span>}
+                  {cautionFor(d, input.startDate) && <span className="text-sm font-semibold text-short">Off season</span>}
                 </span>
                 <span className={`order-3 flex items-center gap-2 text-[15px] text-[#d6dde7] md:order-none ${status.fits ? "" : "opacity-60"}`}>
                   <ModeIcon mode={via.mode} className="shrink-0" />
@@ -183,6 +189,8 @@ function Pass({
   const leaving = new Date(`${input.startDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
   // The budget line is already on the board, so keep the other reasons.
   const reasons = s.reasons.filter((r) => !r.startsWith("Fits your budget"));
+  const caution = cautionFor(d, input.startDate);
+  const fareNote = fareDateNote(s.flight, input.startDate);
 
   return (
     <div id={id} className="animate-open mx-3 mb-4 mt-1 grid overflow-hidden rounded-xl bg-paper text-ink md:mx-7 md:grid-cols-[minmax(0,1fr)_250px]">
@@ -220,6 +228,14 @@ function Pass({
             ))}
           </ul>
         </div>
+
+        {fareNote && <p className="mt-2 text-sm text-soft">{fareNote}</p>}
+
+        {caution && (
+          <p className="mt-5 rounded-lg border-l-4 border-short-ink bg-white px-4 py-2.5 text-[15px]">
+            <span className="font-semibold">Heads up for your dates:</span> {caution}
+          </p>
+        )}
 
         <ul className="mt-5 space-y-1.5 text-[15px]">
           {reasons.map((r) => (

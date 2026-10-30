@@ -141,22 +141,27 @@ export async function recordUse(v: Visitor, kind: AiKind, costUsd: number) {
 // ---------------------------------------------------------------------------
 // Itinerary cache
 
-/** Trips that would get the same plan share a key: dates by month, budgets rounded to ₹1,000. */
+/**
+ * Trips that would get much the same plan share a key, so a plan is only paid for once.
+ * Kept deliberately coarse (the old key matched almost nobody): month not date, group size in
+ * bands, total budget to the nearest ₹2,500, and cuisines left out.
+ */
 export function planCacheKey(input: TripInput, destinationId: string) {
-  const round = (n: number) => Math.round(n / 1000);
-  return `plan:v1:${sha(
+  const n = input.travellers;
+  const groupBand = n === 1 ? "1" : n === 2 ? "2" : n <= 4 ? "3-4" : n <= 6 ? "5-6" : "7+";
+  const total = Object.values(input.budget).reduce((s, x) => s + x, 0);
+  return `plan:v2:${sha(
     JSON.stringify([
       destinationId,
+      input.origin,
       input.days,
       input.startDate.slice(0, 7),
-      input.party,
-      input.travellers,
+      groupBand,
       input.tier,
       input.stay,
       input.diet,
       [...input.interests].sort(),
-      [...input.cuisines].sort(),
-      Object.values(input.budget).map(round),
+      Math.round(total / 2500),
     ]),
   )}`;
 }

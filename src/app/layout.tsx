@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 // Self-hosted fonts, so builds don't depend on reaching Google Fonts.
 import "@fontsource-variable/archivo/wdth.css";
 // Local-script place names. Each file covers one script and only downloads when that script is on screen.
@@ -20,7 +21,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        {/* Page views, once Web Analytics is turned on in the Vercel project. Cookie-free. */}
+        <Analytics />
+      </body>
     </html>
   );
 }

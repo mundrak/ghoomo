@@ -9,6 +9,7 @@ import { defaultTrip, TripForm } from "@/components/TripForm";
 import { LocalName, textLink } from "@/components/ui";
 import { findDestination } from "@/data/destinations";
 import { scaleBudget, scoreDestination } from "@/lib/budget";
+import { track } from "@/lib/track";
 import type { Itinerary } from "@/lib/itinerary";
 import type { Destination, FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
 
@@ -102,6 +103,7 @@ export function App({ storage }: { storage: boolean }) {
   const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firstLoad = useRef(true);
+  const boardCounted = useRef(false);
   const latestInput = useRef(input);
 
   // On first load: open a shared trip (?trip=), join a group (?group=), or pick up the form where it was left.
@@ -116,6 +118,7 @@ export function App({ storage }: { storage: boolean }) {
           setInput(saved.input);
           setPlan({ destinationId: saved.destinationId, itinerary: saved.itinerary, flight: saved.flight, stay: saved.stay, meta: saved.meta });
           setTripId(trip);
+          track("trip_link_opened");
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
           setLink({ trip: null });
@@ -160,6 +163,10 @@ export function App({ storage }: { storage: boolean }) {
       setLoadingBoard(true);
       try {
         const res = await post<{ suggestions: Suggestion[] }>("/api/suggest", latestInput.current, ctrl.signal);
+        if (!boardCounted.current) {
+          boardCounted.current = true;
+          track("board_shown");
+        }
         setSuggestions(res.suggestions);
         setError(null);
       } catch (e) {
@@ -196,6 +203,7 @@ export function App({ storage }: { storage: boolean }) {
   };
 
   const applyGroupBudget = (lowest: number, size: number) => {
+    track("group_budget_used");
     setInput((prev) => ({
       ...prev,
       travellers: size,
@@ -208,11 +216,13 @@ export function App({ storage }: { storage: boolean }) {
   const pick = async (s: Suggestion) => {
     setPlanning(s.destination.id);
     setError(null);
+    track("plan_requested");
     window.scrollTo({ top: 0 });
     try {
       const res = await post<PlanResponse>("/api/itinerary", { input, destinationId: s.destination.id, flight: s.flight });
       const next = toPlan(s.destination.id, res);
       setPlan(next);
+      track("plan_shown");
       void save(next, input);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -301,6 +311,9 @@ export function App({ storage }: { storage: boolean }) {
             .
           </p>
           <p>Prices marked &ldquo;estimate&rdquo; are approximate. Check before you book.</p>
+          <p className="w-full text-xs">
+            ghoomo counts visits and clicks anonymously and keeps one cookie to share free AI plans fairly. No accounts, no personal details.
+          </p>
         </div>
       </footer>
     </div>
