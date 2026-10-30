@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
+import { store } from "./kv";
 import type { TripInput } from "./types";
 
 // Cost controls for AI calls: per-visitor daily allowances, a global daily
 // spend cap in USD, and a cache so identical trip requests are only paid for once.
 //
-// Counters live in Redis (Upstash, free tier, via its REST API) when configured.
-// Without Redis they fall back to process memory, which on serverless hosting
-// resets whenever an instance is recycled. Fine for local dev, not for production.
+// Counters live in Redis when configured, otherwise in process memory (see kv.ts).
+// Memory resets whenever a serverless instance is recycled: fine for local dev, not production.
 
 const num = (v: string | undefined, fallback: number) => (v && !Number.isNaN(Number(v)) ? Number(v) : fallback);
 
@@ -25,55 +25,6 @@ export const LIMITS = {
 
 const DAY_SECONDS = 86_400;
 const CACHE_SECONDS = 7 * DAY_SECONDS;
-
-// ---------------------------------------------------------------------------
-// Storage
-
-interface Store {
-  get(key: string): Promise<string | null>;
-  incrBy(key: string, by: number, ttlSeconds: number): Promise<number>;
-  set(key: string, value: string, ttlSeconds: number): Promise<void>;
-}
-
-function redisStore(url: string, token: string): Store {
-  const pipeline = async (commands: (string | number)[][]) => {
-    const res = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(commands),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(`Redis error ${res.status}`);
-    return ((await res.json()) as { result: unknown }[]).map((r) => r.result);
-  };
-  return {
-    get: async (key) => ((await pipeline([["GET", key]]))[0] as string | null) ?? null,
-    incrBy: async (key, by, ttl) => Number((await pipeline([["INCRBY", key, by], ["EXPIRE", key, ttl]]))[0]),
-    set: async (key, value, ttl) => void (await pipeline([["SET", key, value, "EX", ttl]])),
-  };
-}
-
-function memoryStore(): Store {
-  const data = new Map<string, { value: string; expires: number }>();
-  const read = (key: string) => {
-    const hit = data.get(key);
-    if (hit && hit.expires < Date.now()) data.delete(key);
-    return data.get(key)?.value ?? null;
-  };
-  return {
-    get: async (key) => read(key),
-    incrBy: async (key, by, ttl) => {
-      const value = Number(read(key) ?? 0) + by;
-      data.set(key, { value: String(value), expires: Date.now() + ttl * 1000 });
-      return value;
-    },
-    set: async (key, value, ttl) => void data.set(key, { value, expires: Date.now() + ttl * 1000 }),
-  };
-}
-
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-const store: Store = redisUrl && redisToken ? redisStore(redisUrl, redisToken) : memoryStore();
 
 // ---------------------------------------------------------------------------
 // Visitors and allowances
