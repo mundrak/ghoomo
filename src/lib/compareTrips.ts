@@ -10,12 +10,14 @@ const start = (daysAhead: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-const base = (t: Omit<TripInput, "budget" | "startDate" | "cuisines" | "scope"> & { daysAhead?: number }): TripInput => ({
+const base = (
+  t: Omit<TripInput, "budget" | "startDate" | "cuisines" | "scope"> & { daysAhead?: number; scope?: TripInput["scope"] },
+): TripInput => ({
   ...t,
   startDate: start(t.daysAhead ?? 30),
-  budget: presetBudget(t.tier, t.days),
+  budget: presetBudget(t.tier, t.days, t.scope),
   cuisines: [],
-  scope: "anywhere",
+  scope: t.scope ?? "anywhere",
 });
 
 export const COMPARE_TRIPS: { label: string; destinationId: string; input: TripInput }[] = [
@@ -23,5 +25,5 @@ export const COMPARE_TRIPS: { label: string; destinationId: string; input: TripI
   { label: "4 friends, Delhi → Rishikesh, 4 days, vegetarian", destinationId: "rishikesh", input: base({ origin: "DEL", days: 4, party: "group", travellers: 4, tier: "budget", stay: "hostel", diet: "vegetarian", interests: ["adventure", "nature"] }) },
   { label: "Couple, Mumbai → Goa, 5 days, comfort", destinationId: "goa", input: base({ origin: "BOM", days: 5, party: "couple", travellers: 2, tier: "comfort", stay: "hotel", diet: "any", interests: ["beach", "nightlife", "food"] }) },
   { label: "6 students, Kolkata → Darjeeling, 4 days, Jain", destinationId: "darjeeling", input: base({ origin: "CCU", days: 4, party: "students", travellers: 6, tier: "budget", stay: "airbnb", diet: "jain", interests: ["mountains", "culture"] }) },
-  { label: "5 friends, Delhi → Bangkok & Phuket, 6 days, comfort", destinationId: "thailand", input: base({ origin: "DEL", days: 6, party: "group", travellers: 5, tier: "comfort", stay: "hotel", diet: "any", interests: ["beach", "nightlife", "food"], daysAhead: 45 }) },
+  { label: "5 friends, Delhi → Bangkok & Phuket, 6 days, comfort", destinationId: "thailand", input: base({ origin: "DEL", days: 6, party: "group", travellers: 5, tier: "comfort", stay: "hotel", diet: "any", interests: ["beach", "nightlife", "food"], daysAhead: 45, scope: "abroad" }) },
 ];

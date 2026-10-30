@@ -15,7 +15,7 @@ export const SavedTripSchema = z.object({
   flight: FlightQuoteSchema,
   stay: StayQuoteSchema,
   itinerary: ItineraryInputSchema,
-  meta: z.object({ ai: z.boolean(), aiAvailable: z.boolean() }),
+  meta: z.object({ ai: z.boolean(), premium: z.boolean().optional(), aiAvailable: z.boolean() }),
 });
 export type SavedTrip = z.infer<typeof SavedTripSchema>;
 

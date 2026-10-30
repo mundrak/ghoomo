@@ -2,7 +2,7 @@
 
 import { useId, useRef, type ReactNode } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
-import { CATEGORIES, CATEGORY_LABELS, inr, presetBudget, scaleBudget, sumBudget, TIER_INFO, tierPerDay } from "@/lib/budget";
+import { CATEGORIES, CATEGORY_LABELS, inr, presetBudget, presetTravel, scaleBudget, sumBudget, TIER_INFO, tierPerDay } from "@/lib/budget";
 import type { Diet, Interest, PartyType, StayType, Tier, TripInput } from "@/lib/types";
 import { Chip, Dot, Segmented, SplitBar } from "./ui";
 
@@ -177,7 +177,7 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
               onChange={(e) => {
                 const days = Number(e.target.value);
                 // Keep the amount they chose; just re-split it for the new length.
-                set({ days, budget: scaleBudget(presetBudget(value.tier, days), total) });
+                set({ days, budget: scaleBudget(presetBudget(value.tier, days, value.scope), total) });
               }}
             >
               {Array.from({ length: 13 }, (_, i) => i + 2).map((d) => (
@@ -240,7 +240,7 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
           <Segmented<Tier>
             label="Travel style"
             value={value.tier}
-            onChange={(tier) => set({ tier, budget: presetBudget(tier, value.days) })}
+            onChange={(tier) => set({ tier, budget: presetBudget(tier, value.days, value.scope) })}
             options={(Object.keys(TIER_INFO) as Tier[]).map((t) => ({ id: t, label: TIER_INFO[t].label }))}
           />
           <span className="text-sm text-soft">
@@ -278,7 +278,10 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
             </Group>
           )}
           <Group label="Where to look">
-            <Segmented<TripInput["scope"]> label="Where to look" value={value.scope} onChange={(scope) => set({ scope })} options={SCOPES} />
+            <Segmented<TripInput["scope"]> label="Where to look" value={value.scope} onChange={(scope) =>
+                // Switching to or from abroad resets "getting there" to that scope's default.
+                set({ scope, budget: { ...value.budget, flights: presetTravel(value.tier, scope) } })
+              } options={SCOPES} />
           </Group>
           <Group label="What you eat">
             {DIETS.map((d) => (

@@ -16,6 +16,8 @@ const MAX_CHANGE_CHARS = 300;
 
 export interface PlanMeta {
   ai: boolean;
+  /** Written by the premium model (luxury, Jain and vegan trips). */
+  premium?: boolean;
   aiAvailable: boolean;
   notice?: string;
   plansLeft?: number;
@@ -80,8 +82,10 @@ export function ItineraryView({
       <header className="rounded-2xl bg-board px-6 py-8 text-white sm:px-9 sm:py-10">
         <div className="flex flex-wrap items-center gap-3">
           <LocalName d={d} className="text-2xl text-signal" />
-          <span className="rounded-md border border-board-line px-2 py-0.5 text-xs font-semibold text-board-soft">
-            {meta.ai ? "Planned by AI" : "Starter plan"}
+          <span
+            className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${meta.ai && meta.premium ? "border-signal text-signal" : "border-board-line text-board-soft"}`}
+          >
+            {meta.ai ? (meta.premium ? "Planned by premium AI" : "Planned by AI") : "Starter plan"}
           </span>
         </div>
         <h1 className="font-wide mt-2 text-3xl font-bold leading-tight sm:text-5xl">{itinerary.title}</h1>
