@@ -129,6 +129,11 @@ export async function allowance(v: Visitor, kind: AiKind): Promise<Allowance> {
   return { ...base, allowed: true };
 }
 
+/** Counts AI spend that isn't tied to a visitor (the model comparison page) toward the daily cap. */
+export async function addSpend(costUsd: number) {
+  await store.incrBy(`spend:${today()}`, Math.ceil(costUsd * 1_000_000), 2 * DAY_SECONDS);
+}
+
 export async function recordUse(v: Visitor, kind: AiKind, costUsd: number) {
   const k = keys(v);
   await Promise.all([

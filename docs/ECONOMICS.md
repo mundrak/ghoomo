@@ -40,7 +40,7 @@ All of these are environment variables, so you can change them on Vercel without
 | `BOARD_PER_MINUTE_BROWSER` / `BOARD_PER_MINUTE_NETWORK` | 30 / 300 per minute | Destination board requests. Each can look up up to 10 live fares; moving the budget slider doesn't send any. |
 | `AI_DAILY_BUDGET_USD` | $2 per day | Total AI spend across everyone. When reached, the AI pauses until midnight UTC and everyone gets starter plans. **Worst case: ~$60 (₹5,300)/month.** |
 | Cache | 7 days | Two people asking for the same trip (same place, month, group, style and budget to the nearest ₹1,000) share one AI plan, so the second is free. |
-| Request size limits | — | Trips up to 14 days, edits up to 300 characters, requests up to 40k characters, and every field sent back from the browser (fares, stays, the current plan) checked against tight limits. Stops one request from burning lots of tokens. |
+| Request size limits | — | Trips up to 14 days, edits up to 300 characters, requests up to 80k characters, and every field sent back from the browser (fares, stays, the current plan) checked against tight limits. Stops one request from burning lots of tokens. |
 | Edits at low effort | — | Edits are smaller jobs than new plans, so they use less thinking. |
 | Failed calls are free | — | If the AI fails, the visitor isn't charged a plan and still gets a starter itinerary. |
 
