@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ItineraryView, type PlanMeta } from "@/components/ItineraryView";
 import { Logo } from "@/components/Logo";
 import { Suggestions } from "@/components/Suggestions";
 import { defaultTrip, TripForm } from "@/components/TripForm";
 import { LocalName, textLink } from "@/components/ui";
 import { findDestination } from "@/data/destinations";
+import { scoreDestination } from "@/lib/budget";
 import type { Itinerary } from "@/lib/itinerary";
 import type { Destination, FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
 
@@ -66,6 +67,14 @@ export default function Home() {
   const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firstLoad = useRef(true);
+  const latestInput = useRef(input);
+  useEffect(() => {
+    latestInput.current = input;
+  });
+
+  // Costs and fares don't depend on the budget, so only refetch when something else changes.
+  // Moving the budget slider re-ranks the board in the browser instead (see `ranked`).
+  const fetchKey = JSON.stringify({ ...input, budget: undefined });
 
   // The board follows the form: refetch shortly after the last change.
   useEffect(() => {
@@ -75,7 +84,7 @@ export default function Home() {
     const t = setTimeout(async () => {
       setLoadingBoard(true);
       try {
-        const res = await post<{ suggestions: Suggestion[] }>("/api/suggest", input, ctrl.signal);
+        const res = await post<{ suggestions: Suggestion[] }>("/api/suggest", latestInput.current, ctrl.signal);
         setSuggestions(res.suggestions);
         setError(null);
       } catch (e) {
@@ -88,7 +97,15 @@ export default function Home() {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [input]);
+  }, [fetchKey]);
+
+  const ranked = useMemo(
+    () =>
+      suggestions
+        ?.map((s) => ({ ...s, ...scoreDestination(s.destination, input, s.cost) }))
+        .sort((x, y) => y.fitScore - x.fitScore) ?? null,
+    [suggestions, input],
+  );
 
   const pick = async (s: Suggestion) => {
     setPlanning(s.destination.id);
@@ -156,7 +173,7 @@ export default function Home() {
         ) : (
           <div className="space-y-12">
             <TripForm value={input} onChange={setInput} />
-            <Suggestions input={input} suggestions={suggestions} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
+            <Suggestions input={input} suggestions={ranked} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
           </div>
         )}
       </main>

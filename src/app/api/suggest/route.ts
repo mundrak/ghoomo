@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DESTINATIONS } from "@/data/destinations";
 import { estimateCost, scoreDestination } from "@/lib/budget";
+import { identify, LIMITS, rateLimit, withVisitor } from "@/lib/limits";
 import { skyscannerUrl } from "@/lib/links";
 import { quoteFlight } from "@/lib/providers/flights";
 import type { Suggestion } from "@/lib/types";
@@ -10,6 +11,10 @@ import { TripInputSchema } from "@/lib/validate";
 const LIVE_FARES_FOR = 10;
 
 export async function POST(req: Request) {
+  const visitor = identify(req);
+  if (!(await rateLimit(visitor, "board", LIMITS.boardPerMinuteBrowser, LIMITS.boardPerMinuteNetwork))) {
+    return withVisitor(NextResponse.json({ error: "That's a lot of changes in a minute. Give it a moment, then try again." }, { status: 429 }), visitor);
+  }
   const parsed = TripInputSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Some trip details look wrong. Please check the form." }, { status: 400 });
   const input = parsed.data;
@@ -40,5 +45,5 @@ export async function POST(req: Request) {
   );
 
   suggestions.sort((x, y) => y.fitScore - x.fitScore);
-  return NextResponse.json({ suggestions });
+  return withVisitor(NextResponse.json({ suggestions }), visitor);
 }

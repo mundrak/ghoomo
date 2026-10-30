@@ -4,6 +4,9 @@ import type { TripInput } from "./types";
 // Requests come from the browser, so anything can arrive. Clamping sizes here
 // also caps how many tokens a single request can make the AI spend.
 
+export const MAX_DAYS = 14;
+export const MAX_CHANGE_CHARS = 300;
+
 const money = z.number().finite().min(0).max(1_000_000);
 const interest = z.enum(["beach", "mountains", "nightlife", "culture", "adventure", "food", "shopping", "nature"]);
 
@@ -23,5 +26,78 @@ export const TripInputSchema = z.object({
   destinationId: z.string().max(40).optional(),
 }) satisfies z.ZodType<TripInput>;
 
-export const MAX_DAYS = 14;
-export const MAX_CHANGE_CHARS = 300;
+
+// ---------------------------------------------------------------------------
+// Data the browser sends back when it asks for a plan or an edit. It came from us originally,
+// but anything can arrive, so it's checked with tight bounds: these values end up in the AI
+// prompt (where size costs money) and on the page (where links must stay safe).
+
+const BOOKING_HOSTS = new Set([
+  "www.aviasales.com",
+  "aviasales.com",
+  "www.skyscanner.co.in",
+  "www.hostelworld.com",
+  "www.airbnb.co.in",
+  "www.booking.com",
+]);
+const bookingUrl = z
+  .string()
+  .max(2000)
+  .refine((u) => {
+    try {
+      const url = new URL(u);
+      return url.protocol === "https:" && BOOKING_HOSTS.has(url.hostname);
+    } catch {
+      return false;
+    }
+  }, "Unexpected booking link");
+
+const text = (max: number) => z.string().max(max);
+
+export const FlightQuoteSchema = z.object({
+  price: money,
+  source: z.enum(["live", "estimate"]),
+  airline: text(40).optional(),
+  departAt: text(40).optional(),
+  returnAt: text(40).optional(),
+  transfers: z.number().int().min(0).max(6).optional(),
+  bookingUrl,
+});
+
+export const StayQuoteSchema = z.object({
+  perPersonNight: money,
+  source: z.enum(["live", "estimate"]),
+  name: text(120).optional(),
+  roomName: text(120).optional(),
+  bookingUrl,
+  options: z.array(z.object({ name: text(120), perPersonNight: money })).max(5).optional(),
+});
+
+/** The same shape as ItinerarySchema, with every string and list capped. Used only for input. */
+export const ItineraryInputSchema = z.object({
+  title: text(160),
+  summary: text(800),
+  stayRecommendation: z.object({ area: text(120), why: text(400) }),
+  days: z
+    .array(
+      z.object({
+        day: z.number().int().min(1).max(MAX_DAYS),
+        title: text(160),
+        items: z
+          .array(
+            z.object({
+              time: text(40),
+              category: z.enum(["activities", "food", "transport"]),
+              title: text(160),
+              details: text(500),
+              costPerPerson: money,
+            }),
+          )
+          .max(12),
+      }),
+    )
+    .max(MAX_DAYS),
+  foodTips: z.array(text(300)).max(10),
+  moneySavingTips: z.array(text(300)).max(10),
+  beforeYouGo: z.array(text(300)).max(10),
+});
