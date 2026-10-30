@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { partialParse } from "@anthropic-ai/sdk/_vendor/partial-json-parser/parser";
 import { z } from "zod";
 import { cautionFor, estimateCost, inr, isVegDiet } from "./budget";
 import { travelMode } from "./travel";
@@ -124,6 +125,8 @@ export async function generateItinerary(
   change?: string,
   /** The model to use (see STANDARD_MODEL and PREMIUM_MODEL). */
   model: string = STANDARD_MODEL(),
+  /** When given, the plan is streamed and this is called as the title and each day arrive. */
+  onProgress?: (p: PlanProgress) => void,
 ): Promise<{ itinerary: Itinerary; costUsd: number; model: string; seconds: number }> {
   const client = new Anthropic();
   const started = Date.now();
@@ -137,15 +140,34 @@ export async function generateItinerary(
     );
   }
 
-  const response = await client.beta.messages.parse({
+  const params = {
     model,
     max_tokens: 16000,
     system: systemPrompt(ctx.input.days),
     messages,
     // Edits are smaller jobs than a fresh plan, so they run at lower effort to save tokens.
-    output_config: { effort: change ? "low" : "medium", format: betaZodOutputFormat(ItinerarySchema) },
+    output_config: { effort: change ? ("low" as const) : ("medium" as const), format: betaZodOutputFormat(ItinerarySchema) },
     ...(FALLBACK_MODELS.has(model) && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
-  });
+  };
+
+  let response;
+  if (onProgress) {
+    const stream = client.beta.messages.stream(params);
+    let text = "";
+    let sent = "";
+    stream.on("text", (delta) => {
+      text += delta;
+      const p = progressFrom(text);
+      const key = JSON.stringify(p);
+      if (p && key !== sent) {
+        sent = key;
+        onProgress(p);
+      }
+    });
+    response = await stream.finalMessage();
+  } else {
+    response = await client.beta.messages.parse(params);
+  }
 
   const costUsd = callCostUsd(response.model, response.usage);
   console.log(
@@ -155,6 +177,32 @@ export async function generateItinerary(
   if (response.stop_reason === "refusal") throw new Error("The planner couldn't help with that request.");
   if (!response.parsed_output) throw new Error("The planner returned an incomplete itinerary. Please try again.");
   return { itinerary: response.parsed_output, costUsd, model: response.model, seconds: Math.round((Date.now() - started) / 1000) };
+}
+
+/** What the loading screen shows while a plan is being written: the title, then each day's title. */
+export interface PlanProgress {
+  title?: string;
+  days: string[];
+}
+
+/** Reads the half-written JSON so far. Only complete-looking titles are passed on. */
+function progressFrom(text: string): PlanProgress | null {
+  let raw: unknown;
+  try {
+    raw = partialParse(text);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { title?: unknown; summary?: unknown; days?: unknown };
+  // The title is only final once the model has moved on to the summary.
+  const title = typeof r.title === "string" && r.summary !== undefined ? r.title : undefined;
+  const days = Array.isArray(r.days) ? r.days : [];
+  // A day's title is final once its items have started.
+  const dayTitles = days
+    .filter((d): d is { title: string; items: unknown } => !!d && typeof d === "object" && typeof d.title === "string" && "items" in d)
+    .map((d) => d.title);
+  return { title, days: dayTitles };
 }
 
 /** Activities for the full days: best interest matches first, but only what the activities budget covers. */

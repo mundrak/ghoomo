@@ -10,7 +10,7 @@ import { LocalName, textLink } from "@/components/ui";
 import { findDestination } from "@/data/destinations";
 import { scaleBudget, scoreDestination } from "@/lib/budget";
 import { track } from "@/lib/track";
-import type { Itinerary } from "@/lib/itinerary";
+import type { Itinerary, PlanProgress } from "@/lib/itinerary";
 import type { Destination, FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
 
 interface Plan {
@@ -27,6 +27,39 @@ async function post<T>(url: string, body: unknown, signal?: AbortSignal): Promis
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? "Something went wrong. Try again.");
   return data as T;
+}
+
+/**
+ * Asks for a new plan as a stream, so the loading screen can show each day as it's written.
+ * Cached plans, starter plans and errors come back as ordinary JSON, which is handled too.
+ */
+async function postPlan(body: unknown, onProgress: (p: PlanProgress) => void): Promise<PlanResponse> {
+  const res = await fetch("/api/itinerary", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/x-ndjson, application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.headers.get("content-type")?.includes("ndjson") || !res.body) {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? "Something went wrong. Try again.");
+    return data as PlanResponse;
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const msg = JSON.parse(line) as { progress?: PlanProgress; done?: PlanResponse };
+      if (msg.done) return msg.done;
+      if (msg.progress) onProgress(msg.progress);
+    }
+  }
+  throw new Error("The connection dropped while your plan was being written. Try again.");
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -55,13 +88,17 @@ const toPlan = (destinationId: string, { itinerary, flight, stay, ...meta }: Pla
 
 const PLANNING_LINES = ["Checking fares from your city", "Comparing stays for your group", "Matching days to your interests", "Doing the budget maths"];
 
-/** Shown while a plan is written. The logo's route draws itself from where you are to where you're going. */
-function Planning({ d }: { d: Destination }) {
+/**
+ * Shown while a plan is written. The logo's route draws itself from where you are to where you're going.
+ * With an AI plan, the title and each day appear on the board as the planner writes them.
+ */
+function Planning({ d, days, progress }: { d: Destination; days: number; progress: PlanProgress | null }) {
   const [line, setLine] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setLine((l) => (l + 1) % PLANNING_LINES.length), 2200);
     return () => clearInterval(t);
   }, []);
+  const written = progress?.days ?? [];
   return (
     <div className="grid place-items-center rounded-2xl bg-board px-6 py-24 text-center text-white" role="status">
       <svg width="132" height="60" viewBox="0 0 44 22" aria-hidden="true">
@@ -70,8 +107,20 @@ function Planning({ d }: { d: Destination }) {
         <circle cx="37" cy="8" r="3.6" stroke="#f4f4f1" strokeWidth="2" fill="none" />
       </svg>
       <LocalName d={d} className="mt-6 text-2xl text-signal" />
-      <h2 className="font-wide mt-1 text-3xl font-bold">Planning {d.name}</h2>
-      <p className="mt-2 text-board-soft">{PLANNING_LINES[line]}…</p>
+      <h2 className="font-wide mt-1 text-3xl font-bold">{progress?.title ?? `Planning ${d.name}`}</h2>
+      <p className="mt-2 text-board-soft" aria-live="polite">
+        {progress?.title ? `Writing day ${Math.min(written.length + 1, days)} of ${days}` : PLANNING_LINES[line]}…
+      </p>
+      {written.length > 0 && (
+        <ol className="mt-8 w-full max-w-md divide-y divide-board-line overflow-hidden rounded-xl border border-board-line text-left">
+          {written.map((title, i) => (
+            <li key={i} className="animate-flip flex items-baseline gap-4 bg-board-raised px-4 py-3">
+              <span className="font-wide w-12 shrink-0 text-xs font-bold tracking-wider text-signal">DAY {i + 1}</span>
+              <span className="text-sm text-white">{title}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -100,6 +149,7 @@ export function App({ storage }: { storage: boolean }) {
   const [loadingBoard, setLoadingBoard] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planning, setPlanning] = useState<string | null>(null);
+  const [progress, setProgress] = useState<PlanProgress | null>(null);
   const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firstLoad = useRef(true);
@@ -219,7 +269,7 @@ export function App({ storage }: { storage: boolean }) {
     track("plan_requested");
     window.scrollTo({ top: 0 });
     try {
-      const res = await post<PlanResponse>("/api/itinerary", { input, destinationId: s.destination.id, flight: s.flight });
+      const res = await postPlan({ input, destinationId: s.destination.id, flight: s.flight }, setProgress);
       const next = toPlan(s.destination.id, res);
       setPlan(next);
       track("plan_shown");
@@ -228,6 +278,7 @@ export function App({ storage }: { storage: boolean }) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPlanning(null);
+      setProgress(null);
     }
   };
 
@@ -289,7 +340,7 @@ export function App({ storage }: { storage: boolean }) {
         )}
 
         {planningDest ? (
-          <Planning d={planningDest} />
+          <Planning d={planningDest} days={input.days} progress={progress} />
         ) : plan && destination ? (
           <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={refining} shareUrl={shareUrl} siteUrl={origin} />
         ) : (

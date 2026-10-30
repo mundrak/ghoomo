@@ -198,9 +198,9 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
   }
 }
 
-export async function cacheSet(key: string, value: unknown) {
+export async function cacheSet(key: string, value: unknown, seconds = CACHE_SECONDS) {
   try {
-    await store.set(key, JSON.stringify(value), CACHE_SECONDS);
+    await store.set(key, JSON.stringify(value), seconds);
   } catch {
     // A failed cache write only costs a future AI call.
   }
