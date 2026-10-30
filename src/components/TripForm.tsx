@@ -81,7 +81,8 @@ function Slot({ children, control }: { children: ReactNode; control: ReactNode }
     </span>
   );
 }
-const overlay = "peer absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none opacity-0";
+// The control is invisible but its dropdown is not: give it normal text size so the option list isn't headline-sized.
+const overlay = "peer absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none text-base font-normal tracking-normal opacity-0";
 
 export function TripForm({ value, onChange }: { value: TripInput; onChange: (next: TripInput) => void }) {
   const sliderRef = useRef<HTMLInputElement>(null);
@@ -103,7 +104,7 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
 
   return (
     <div>
-      <h1 className="font-wide max-w-5xl text-[clamp(30px,4.4vw,52px)] font-bold leading-[1.28] tracking-tight text-ink">
+      <h1 className="font-wide max-w-5xl text-[clamp(28px,3.8vw,46px)] font-bold leading-[1.3] tracking-tight text-ink">
         {!solo && "We're "}
         <Slot
           control={
