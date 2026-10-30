@@ -13,7 +13,14 @@ const num = (v: string | undefined, fallback: number) => (v && !Number.isNaN(Num
 export const LIMITS = {
   plansPerVisitor: num(process.env.AI_PLANS_PER_VISITOR, 3),
   editsPerVisitor: num(process.env.AI_EDITS_PER_VISITOR, 10),
+  // Backstop per network. Set well above the per-browser limit, because a college hostel or a
+  // mobile carrier can put many people behind one IP address.
+  plansPerNetwork: num(process.env.AI_PLANS_PER_NETWORK, 30),
+  editsPerNetwork: num(process.env.AI_EDITS_PER_NETWORK, 100),
   dailyBudgetUsd: num(process.env.AI_DAILY_BUDGET_USD, 2),
+  // Destination board requests, per minute. Each one can look up several live fares.
+  boardPerMinuteBrowser: num(process.env.BOARD_PER_MINUTE_BROWSER, 30),
+  boardPerMinuteNetwork: num(process.env.BOARD_PER_MINUTE_NETWORK, 300),
 };
 
 const DAY_SECONDS = 86_400;
@@ -74,10 +81,52 @@ const store: Store = redisUrl && redisToken ? redisStore(redisUrl, redisToken) :
 const sha = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 32);
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Hashed IP address, so raw IPs are never stored. */
-export function visitorId(req: Request) {
+export const VISITOR_COOKIE = "ghoomo_vid";
+const COOKIE_ID = /^[0-9a-f-]{36}$/;
+
+export interface Visitor {
+  /** Anonymous ID kept in a cookie: one per browser. */
+  browser: string;
+  /** Hashed IP address (raw IPs are never stored): a backstop for people who clear cookies. */
+  network: string;
+  /** Set when this request had no valid cookie; the response should save it. */
+  newCookie?: string;
+}
+
+/** Who is asking. Limits are per browser, with a looser per-network backstop. */
+export function identify(req: Request): Visitor {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-  return sha(`ghoomo:${ip}`);
+  const network = sha(`ghoomo:ip:${ip}`);
+  const cookie = req.headers
+    .get("cookie")
+    ?.split(";")
+    .map((c) => c.trim().split("="))
+    .find(([k]) => k === VISITOR_COOKIE)?.[1];
+  if (cookie && COOKIE_ID.test(cookie)) return { browser: sha(`ghoomo:id:${cookie}`), network };
+  const fresh = crypto.randomUUID();
+  return { browser: sha(`ghoomo:id:${fresh}`), network, newCookie: fresh };
+}
+
+/** Saves the visitor cookie on a response when the request didn't have one. */
+export function withVisitor<T extends { cookies: { set: (name: string, value: string, options: object) => unknown } }>(res: T, v: Visitor): T {
+  if (v.newCookie) {
+    res.cookies.set(VISITOR_COOKIE, v.newCookie, { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 365 * DAY_SECONDS });
+  }
+  return res;
+}
+
+/** Fixed-window rate limit. Returns true when the request is allowed. */
+export async function rateLimit(v: Visitor, name: string, perBrowser: number, perNetwork: number, windowSeconds = 60) {
+  const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
+  try {
+    const [b, n] = await Promise.all([
+      store.incrBy(`rl:${name}:${bucket}:b:${v.browser}`, 1, windowSeconds * 2),
+      store.incrBy(`rl:${name}:${bucket}:n:${v.network}`, 1, windowSeconds * 2),
+    ]);
+    return b <= perBrowser && n <= perNetwork;
+  } catch {
+    return true; // If the counter store is down, don't block people.
+  }
 }
 
 export type AiKind = "plan" | "edit";
@@ -90,21 +139,29 @@ export interface Allowance {
   editsLeft: number;
 }
 
-const keys = (visitor: string) => ({
-  plans: `use:${today()}:${visitor}:plan`,
-  edits: `use:${today()}:${visitor}:edit`,
+const keys = (v: Visitor) => ({
+  plans: `use:${today()}:b:${v.browser}:plan`,
+  edits: `use:${today()}:b:${v.browser}:edit`,
+  netPlans: `use:${today()}:n:${v.network}:plan`,
+  netEdits: `use:${today()}:n:${v.network}:edit`,
   spend: `spend:${today()}`, // micro-dollars
 });
 
-export async function allowance(visitor: string, kind: AiKind): Promise<Allowance> {
-  const k = keys(visitor);
-  const [plans, edits, spend] = await Promise.all([store.get(k.plans), store.get(k.edits), store.get(k.spend)]);
+export async function allowance(v: Visitor, kind: AiKind): Promise<Allowance> {
+  const k = keys(v);
+  const [plans, edits, netPlans, netEdits, spend] = await Promise.all([
+    store.get(k.plans),
+    store.get(k.edits),
+    store.get(k.netPlans),
+    store.get(k.netEdits),
+    store.get(k.spend),
+  ]);
   const plansLeft = Math.max(LIMITS.plansPerVisitor - Number(plans ?? 0), 0);
   const editsLeft = Math.max(LIMITS.editsPerVisitor - Number(edits ?? 0), 0);
   const base = { plansLeft, editsLeft };
 
   if (Number(spend ?? 0) / 1_000_000 >= LIMITS.dailyBudgetUsd) {
-    return { ...base, allowed: false, reason: "Our AI planner is resting for today because it's been very popular. Here's a starter plan instead. Try AI again tomorrow!" };
+    return { ...base, allowed: false, reason: "The AI planner has hit today's limit. Here's a starter plan instead. AI plans are back tomorrow." };
   }
   if (kind === "plan" && plansLeft === 0) {
     return { ...base, allowed: false, reason: `You've used your ${LIMITS.plansPerVisitor} free AI plans for today, so here's a starter plan. You get more tomorrow.` };
@@ -112,13 +169,20 @@ export async function allowance(visitor: string, kind: AiKind): Promise<Allowanc
   if (kind === "edit" && editsLeft === 0) {
     return { ...base, allowed: false, reason: `You've used your ${LIMITS.editsPerVisitor} free AI edits for today. You get more tomorrow.` };
   }
+  if (kind === "plan" && Number(netPlans ?? 0) >= LIMITS.plansPerNetwork) {
+    return { ...base, allowed: false, reason: "Lots of people on your network have used AI plans today, so here's a starter plan. Try again tomorrow." };
+  }
+  if (kind === "edit" && Number(netEdits ?? 0) >= LIMITS.editsPerNetwork) {
+    return { ...base, allowed: false, reason: "Lots of people on your network have used AI edits today. Try again tomorrow." };
+  }
   return { ...base, allowed: true };
 }
 
-export async function recordUse(visitor: string, kind: AiKind, costUsd: number) {
-  const k = keys(visitor);
+export async function recordUse(v: Visitor, kind: AiKind, costUsd: number) {
+  const k = keys(v);
   await Promise.all([
     store.incrBy(kind === "plan" ? k.plans : k.edits, 1, 2 * DAY_SECONDS),
+    store.incrBy(kind === "plan" ? k.netPlans : k.netEdits, 1, 2 * DAY_SECONDS),
     store.incrBy(k.spend, Math.ceil(costUsd * 1_000_000), 2 * DAY_SECONDS),
   ]);
 }
