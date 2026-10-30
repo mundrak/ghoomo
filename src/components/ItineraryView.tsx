@@ -6,6 +6,7 @@ import { CATEGORIES, CATEGORY_LABELS, inr, TIER_INFO } from "@/lib/budget";
 import type { Itinerary } from "@/lib/itinerary";
 import type { CategoryBudget, Destination, FlightQuote, StayQuote, TripInput } from "@/lib/types";
 import { travelMode } from "@/lib/travel";
+import { CopyButton, WhatsAppLink } from "./Share";
 import { Dot, inputClass, LocalName, Meter, ModeIcon, PriceSource, primaryButton, Spinner } from "./ui";
 
 const QUICK_CHANGES = ["Make it cheaper", "More nightlife", "More veg food spots", "Slower pace", "Add one splurge"];
@@ -36,6 +37,8 @@ export function ItineraryView({
   meta,
   onChange,
   busy,
+  shareUrl,
+  siteUrl,
 }: {
   input: TripInput;
   destination: Destination;
@@ -45,6 +48,9 @@ export function ItineraryView({
   meta: PlanMeta;
   onChange: (change: string) => void;
   busy: boolean;
+  /** Link to this saved plan, when saving is switched on and it has saved. */
+  shareUrl?: string | null;
+  siteUrl?: string;
 }) {
   const [change, setChange] = useState("");
   const spent = planned(itinerary, flight, stay, input.days);
@@ -93,6 +99,18 @@ export function ItineraryView({
           ))}
         </dl>
       </header>
+
+      <ShareBar
+        text={[
+          `${itinerary.title}, leaving ${city} on ${dateOf(0)}.`,
+          `About ${inr(total)} each, all in${input.travellers > 1 ? ` (${inr(total * input.travellers)} for ${input.travellers} of us)` : ""}.`,
+          flight.label ? `Getting there: ${flight.label}.` : "",
+          shareUrl ? `The plan: ${shareUrl}` : siteUrl ? `Planned on ghoomo: ${siteUrl}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")}
+        shareUrl={shareUrl ?? null}
+      />
 
       {meta.notice && <div className="rounded-xl border-[1.5px] border-signal bg-signal/15 px-5 py-4 text-sm text-ink">{meta.notice}</div>}
 
@@ -299,6 +317,17 @@ export function ItineraryView({
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/** Send the plan to the group. The link only appears once the plan is saved. */
+function ShareBar({ text, shareUrl }: { text: string; shareUrl: string | null }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-sm font-semibold text-soft">Send it to the group</span>
+      <WhatsAppLink text={text} />
+      {shareUrl && <CopyButton text={shareUrl} label="Copy link" />}
     </div>
   );
 }

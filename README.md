@@ -45,6 +45,8 @@ AI itineraries are the only cost that grows with users. The app limits it:
 
 All limits are environment variables (see `.env.example`). For them to hold on Vercel, connect a free Upstash Redis database: in the Vercel project, open **Storage → Create Database → Upstash (Redis)** and connect it to the project. Vercel adds the connection variables, and the app picks them up automatically.
 
+Redis also switches on **saved trips** (share links like `/?trip=…`) and **group check-in** (`/?group=…`). Without it, both stay hidden and the plan page offers a WhatsApp share only. The home page is built ahead of time, so **redeploy after connecting Redis** for them to appear.
+
 Full numbers, suggested settings and how the app can pay for itself: [docs/ECONOMICS.md](docs/ECONOMICS.md).
 
 ## Code map
