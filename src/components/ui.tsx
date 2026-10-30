@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Category, Destination } from "@/lib/types";
+import type { Category, Destination, TravelMode } from "@/lib/types";
 
 // One colour per budget category. Flights use ink so the biggest cost reads as the anchor.
 export const CATEGORY_COLOR: Record<Category, string> = {
@@ -72,8 +72,8 @@ export function Segmented<T extends string>({
 }
 
 /** Says where a price came from. Flight fares from the provider are recently seen fares, not a live booking quote. */
-export function PriceSource({ kind, live }: { kind: "flight" | "stay"; live: boolean }) {
-  const text = live ? (kind === "flight" ? "recent fare" : "live rate") : "estimate";
+export function PriceSource({ kind, live }: { kind: "flight" | "stay" | "travel"; live: boolean }) {
+  const text = live ? (kind === "stay" ? "live rate" : "recent fare") : "estimate";
   return (
     <span className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${live ? "bg-go/15 text-go-ink" : "bg-line text-soft"}`}>{text}</span>
   );
@@ -110,6 +110,34 @@ export function PlaneIcon({ className = "" }: { className?: string }) {
       <path d="M16 10h4a2 2 0 0 1 0 4h-4l-4 7H9l2-7H7l-2 2H2l2-4-2-4h3l2 2h4L9 3h3z" />
     </svg>
   );
+}
+
+export function TrainIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" />
+      <path d="M7 6.5h10v4H7zM8 20.5l1.5-3.5M16 20.5 14.5 17M6 20.5h12" />
+      <circle cx="8.5" cy="14" r=".7" fill="currentColor" />
+      <circle cx="15.5" cy="14" r=".7" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function PinIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11z" />
+      <circle cx="12" cy="10" r="2.2" />
+    </svg>
+  );
+}
+
+/** The icon for how you're getting there. */
+export function ModeIcon({ mode, className = "" }: { mode: TravelMode; className?: string }) {
+  if (mode === "train") return <TrainIcon className={className} />;
+  if (mode === "bus") return <RoadIcon className={className} />;
+  if (mode === "none") return <PinIcon className={className} />;
+  return <PlaneIcon className={className} />;
 }
 
 export function RoadIcon({ className = "" }: { className?: string }) {

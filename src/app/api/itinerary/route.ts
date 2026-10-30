@@ -4,7 +4,7 @@ import { z } from "zod";
 import { findDestination } from "@/data/destinations";
 import { aiEnabled, generateItinerary, type Itinerary, templateItinerary } from "@/lib/itinerary";
 import { allowance, cacheGet, cacheSet, identify, planCacheKey, recordUse, withVisitor, type Allowance } from "@/lib/limits";
-import { quoteFlight } from "@/lib/providers/flights";
+import { quoteTravel } from "@/lib/providers/flights";
 import { quoteStay } from "@/lib/providers/stays";
 import { FlightQuoteSchema, ItineraryInputSchema, MAX_CHANGE_CHARS, StayQuoteSchema, TripInputSchema } from "@/lib/validate";
 
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   if (!destination) return NextResponse.json({ error: "Unknown destination" }, { status: 400 });
 
   const [flight, stay] = await Promise.all([
-    body.flight ?? quoteFlight(body.input, destination),
+    body.flight ?? quoteTravel(body.input, destination),
     body.stay ?? quoteStay(body.input, destination),
   ]);
   const ctx = { input: body.input, destination, flight, stay };

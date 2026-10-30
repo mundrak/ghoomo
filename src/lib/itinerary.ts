@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { inr, pickActivities } from "./budget";
+import { travelMode } from "./travel";
 import type { Destination, FlightQuote, StayQuote, TripInput } from "./types";
 
 export const ItinerarySchema = z.object({
@@ -45,7 +46,7 @@ export const aiEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY);
 const systemPrompt = (days: number) => `You plan trips for Indian travellers — mostly students and friend groups of 4-6 — who care about getting the most out of a fixed budget.
 
 Plan a realistic day-by-day itinerary for the trip described. Rules:
-- Every cost is in INR per person. Keep each category's total (food, activities, transport) within the per-person budget given for it; flights and stay are already priced and shown separately, so don't add items for them.
+- Every cost is in INR per person. Keep each category's total (food, activities, transport) within the per-person budget given for it; getting there (train, bus or flight) and stay are already priced and shown separately, so don't add items for them.
 - Use the live prices provided when present. For anything else, give honest current estimates; never invent precise prices to look exact.
 - Respect the diet strictly. For vegetarian, Jain or vegan travellers name specific places or dishes that work, and say where it will be hard.
 - Day 1 starts with arrival and day ${days} ends with departure; keep those days light.
@@ -53,12 +54,22 @@ Plan a realistic day-by-day itinerary for the trip described. Rules:
 - Pace: 2-4 items per day plus meals. No filler.
 - When the traveller asks for a change, apply it, keep everything else that still fits, and rebalance costs to stay within budget.`;
 
+/** Where the trip starts on arrival day: the station, bus stand or airport, in words. */
+function arrivalPoint(d: Destination, flight: FlightQuote) {
+  const mode = travelMode(flight);
+  if (mode === "train") return { arrive: `Arrive at ${d.ground?.to ?? d.name} station`, leave: "Head to the station", buffer: "30 minutes", note: d.ground && d.ground.to !== d.name ? `The train gets in at ${d.ground.to}; take a cab or local transport on to ${d.name}.` : undefined };
+  if (mode === "bus") return { arrive: `Arrive in ${d.name} by bus`, leave: "Head to the bus stand", buffer: "30 minutes", note: undefined };
+  if (mode === "none") return { arrive: `Start in ${d.name}`, leave: "Head home", buffer: "", note: undefined };
+  return { arrive: `Arrive in ${d.name} and check in`, leave: "Head to the airport", buffer: d.international ? "3 hours" : "2 hours", note: d.arrivalNote };
+}
+
 function describeTrip({ input, destination: d, flight, stay }: TripContext) {
   const nights = Math.max(input.days - 1, 1);
+  const way = arrivalPoint(d, flight);
   return JSON.stringify(
     {
       destination: `${d.name}, ${d.country}`,
-      arrivalNote: d.arrivalNote,
+      arrivalNote: way.note,
       startDate: input.startDate,
       days: input.days,
       travellers: input.travellers,
@@ -70,7 +81,7 @@ function describeTrip({ input, destination: d, flight, stay }: TripContext) {
       interests: input.interests,
       perPersonBudgetINR: input.budget,
       alreadyPriced: {
-        flight: `${inr(flight.price)} return (${flight.source === "live" ? `live fare${flight.airline ? `, ${flight.airline}` : ""}` : "estimate"})`,
+        gettingThere: `${flight.label ?? "Flight"}: ${inr(flight.price)} return (${flight.source === "live" ? `recent fare${flight.airline ? `, ${flight.airline}` : ""}` : "estimate"})`,
         stay: `${inr(stay.perPersonNight)} per person per night × ${nights} nights (${stay.source === "live" ? `live rate at ${stay.name}` : "estimate"})`,
       },
       visaForIndians: d.visa,
@@ -135,8 +146,9 @@ export async function generateItinerary(
 }
 
 /** A simple itinerary built from our own data: used without an AI key, or once AI limits are reached. */
-export function templateItinerary({ input, destination: d }: TripContext): Itinerary {
+export function templateItinerary({ input, destination: d, flight }: TripContext): Itinerary {
   const acts = pickActivities(d, input);
+  const way = arrivalPoint(d, flight);
   const food = d.foodPerDay[input.tier];
   const transport = d.transportPerDay[input.tier];
   const days = Array.from({ length: input.days }, (_, i) => {
@@ -146,13 +158,13 @@ export function templateItinerary({ input, destination: d }: TripContext): Itine
       items.push({
         time: "Arrival",
         category: "transport",
-        title: `Arrive in ${d.name} and check in`,
-        details: d.arrivalNote ?? "Take a prepaid cab or airport transfer to your stay.",
+        title: way.arrive,
+        details: way.note ?? "Take a prepaid cab or auto to your stay and check in.",
         costPerPerson: transport,
       });
     } else if (day === input.days) {
-      const buffer = d.international ? "3 hours" : "2 hours";
-      items.push({ time: "Departure", category: "transport", title: "Head to the airport", details: `Reach the airport ${buffer} before your flight.`, costPerPerson: transport });
+      const details = way.buffer ? `Get there ${way.buffer} before you leave.` : "";
+      items.push({ time: "Departure", category: "transport", title: way.leave, details, costPerPerson: transport });
     } else {
       const act = acts[day - 2];
       if (act) items.push({ time: "Morning", category: "activities", title: act.name, details: "", costPerPerson: act.cost });

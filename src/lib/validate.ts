@@ -39,6 +39,8 @@ const BOOKING_HOSTS = new Set([
   "www.hostelworld.com",
   "www.airbnb.co.in",
   "www.booking.com",
+  "www.irctc.co.in",
+  "www.redbus.in",
 ]);
 const bookingUrl = z
   .string()
@@ -57,6 +59,9 @@ const text = (max: number) => z.string().max(max);
 export const FlightQuoteSchema = z.object({
   price: money,
   source: z.enum(["live", "estimate"]),
+  mode: z.enum(["flight", "train", "bus", "none"]).optional(),
+  label: text(60).optional(),
+  hours: z.number().min(0).max(96).optional(),
   airline: text(40).optional(),
   departAt: text(40).optional(),
   returnAt: text(40).optional(),

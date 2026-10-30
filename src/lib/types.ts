@@ -51,8 +51,19 @@ export interface Destination {
   airport: string;
   /** How to get from the airport to the destination, if it isn't right there. */
   arrivalNote?: string;
-  /** Typical economy return fare from a metro, INR per person. */
+  /** Typical economy return fare from a metro, INR per person. Used for trips abroad; domestic fares are worked out by distance. */
   flightEstimate: number;
+  /** Roughly where the place is, for working out distance and travel time from each city. */
+  lat: number;
+  lon: number;
+  /** How people usually get there over land, if that's practical. Leave out for places you have to fly to. */
+  ground?: {
+    mode: "train" | "bus";
+    /** Where the train or bus actually goes, e.g. "Hosapete" for Hampi. */
+    to: string;
+    /** redBus's name for the town, for bus search links. */
+    busSlug?: string;
+  };
   bestMonths: number[]; // 1-12
   tags: Interest[];
   visa: string;
@@ -72,9 +83,18 @@ export interface Destination {
   countryCode: string;
 }
 
+export type TravelMode = "flight" | "train" | "bus" | "none";
+
+/** How you get there and back. Named for flights, which came first; it now covers trains and buses too. */
 export interface FlightQuote {
   price: number; // INR per person, return
   source: "live" | "estimate";
+  /** Missing on quotes from before trains and buses were added: treat as a flight. */
+  mode?: TravelMode;
+  /** In words, e.g. "Overnight train, about 11 h". */
+  label?: string;
+  /** One-way travel time in hours, roughly. */
+  hours?: number;
   airline?: string;
   departAt?: string;
   returnAt?: string;
