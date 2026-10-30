@@ -80,30 +80,32 @@ export const StayQuoteSchema = z.object({
 });
 
 /** The same shape as ItinerarySchema, with every string and list capped. Used only for input. */
+// Generous enough for AI-written plans (which run longer than starter plans), tight enough
+// that nobody can stuff the prompt.
 export const ItineraryInputSchema = z.object({
-  title: text(160),
-  summary: text(800),
-  stayRecommendation: z.object({ area: text(120), why: text(400) }),
+  title: text(200),
+  summary: text(1500),
+  stayRecommendation: z.object({ area: text(200), why: text(800) }),
   days: z
     .array(
       z.object({
         day: z.number().int().min(1).max(MAX_DAYS),
-        title: text(160),
+        title: text(200),
         items: z
           .array(
             z.object({
-              time: text(40),
+              time: text(60),
               category: z.enum(["activities", "food", "transport"]),
-              title: text(160),
-              details: text(500),
+              title: text(200),
+              details: text(1200),
               costPerPerson: money,
             }),
           )
-          .max(12),
+          .max(15),
       }),
     )
     .max(MAX_DAYS),
-  foodTips: z.array(text(300)).max(10),
-  moneySavingTips: z.array(text(300)).max(10),
-  beforeYouGo: z.array(text(300)).max(10),
+  foodTips: z.array(text(600)).max(12),
+  moneySavingTips: z.array(text(600)).max(12),
+  beforeYouGo: z.array(text(600)).max(12),
 });

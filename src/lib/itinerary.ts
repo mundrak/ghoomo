@@ -6,11 +6,11 @@ import { travelMode } from "./travel";
 import type { Destination, FlightQuote, StayQuote, TripInput } from "./types";
 
 export const ItinerarySchema = z.object({
-  title: z.string(),
-  summary: z.string(),
+  title: z.string().describe("Short, like a headline: under 50 characters"),
+  summary: z.string().describe("Two or three sentences, under 350 characters. Don't repeat the costs."),
   stayRecommendation: z.object({
     area: z.string().describe("Neighbourhood or area to stay in"),
-    why: z.string(),
+    why: z.string().describe("One or two sentences"),
   }),
   days: z.array(
     z.object({
@@ -21,14 +21,14 @@ export const ItinerarySchema = z.object({
           time: z.string().describe('e.g. "Morning", "1:00 PM"'),
           category: z.enum(["activities", "food", "transport"]),
           title: z.string(),
-          details: z.string(),
+          details: z.string().describe("One or two sentences"),
           costPerPerson: z.number().describe("INR per person; 0 if free"),
         }),
       ),
     }),
   ),
-  foodTips: z.array(z.string()),
-  moneySavingTips: z.array(z.string()),
+  foodTips: z.array(z.string()).describe("Up to 4 short tips"),
+  moneySavingTips: z.array(z.string()).describe("Up to 4 short tips"),
   beforeYouGo: z.array(z.string()).describe("Visa, permits, SIM, forex, packing"),
 });
 
@@ -104,6 +104,7 @@ const PRICES: Record<string, { input: number; output: number }> = {
 const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
 
 export const aiModel = () => process.env.CLAUDE_MODEL || "claude-opus-5-5";
+export const COMPARE_MODELS = Object.keys(PRICES);
 
 export function callCostUsd(model: string, usage: { input_tokens: number; output_tokens: number }) {
   const price = PRICES[model] ?? PRICES["claude-opus-5-5"];
@@ -114,9 +115,12 @@ export async function generateItinerary(
   ctx: TripContext,
   current?: Itinerary,
   change?: string,
-): Promise<{ itinerary: Itinerary; costUsd: number }> {
+  /** Use a specific model instead of CLAUDE_MODEL (for the model comparison page). */
+  modelOverride?: string,
+): Promise<{ itinerary: Itinerary; costUsd: number; model: string; seconds: number }> {
   const client = new Anthropic();
-  const model = aiModel();
+  const model = modelOverride ?? aiModel();
+  const started = Date.now();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: `Plan this trip:\n${describeTrip(ctx)}` },
   ];
@@ -144,7 +148,7 @@ export async function generateItinerary(
 
   if (response.stop_reason === "refusal") throw new Error("The planner couldn't help with that request.");
   if (!response.parsed_output) throw new Error("The planner returned an incomplete itinerary. Please try again.");
-  return { itinerary: response.parsed_output, costUsd };
+  return { itinerary: response.parsed_output, costUsd, model: response.model, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
 /** Activities for the full days: best interest matches first, but only what the activities budget covers. */

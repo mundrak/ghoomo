@@ -23,8 +23,8 @@ const BodySchema = z
   })
   .refine((b) => !b.itinerary || b.itinerary.days.length <= b.input.days, "The plan has more days than the trip");
 
-// A 14-day plan is well under this; anything bigger isn't a real request.
-const MAX_BODY_CHARS = 40_000;
+// A long AI-written 14-day plan fits comfortably; anything bigger isn't a real request.
+const MAX_BODY_CHARS = 80_000;
 
 const usage = (a: Pick<Allowance, "plansLeft" | "editsLeft">) => ({ plansLeft: a.plansLeft, editsLeft: a.editsLeft });
 

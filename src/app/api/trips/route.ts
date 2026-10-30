@@ -4,7 +4,7 @@ import { storageAvailable } from "@/lib/kv";
 import { identify, rateLimit, withVisitor } from "@/lib/limits";
 import { SavedTripSchema, saveTrip } from "@/lib/shared";
 
-const MAX_BODY_CHARS = 40_000;
+const MAX_BODY_CHARS = 80_000;
 
 /** Saves a plan so it can be opened again from a link. */
 export async function POST(req: Request) {
