@@ -81,8 +81,29 @@ function describeTrip({ input, destination: d, flight, stay }: TripContext) {
   );
 }
 
-export async function generateItinerary(ctx: TripContext, current?: Itinerary, change?: string): Promise<Itinerary> {
+// USD per million tokens, used to track spend against the daily cap.
+const PRICES: Record<string, { input: number; output: number }> = {
+  "claude-opus-5-5": { input: 4, output: 20 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
+};
+// Server-side refusal fallbacks are available for these models only.
+const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
+
+export const aiModel = () => process.env.CLAUDE_MODEL || "claude-opus-5-5";
+
+export function callCostUsd(model: string, usage: { input_tokens: number; output_tokens: number }) {
+  const price = PRICES[model] ?? PRICES["claude-opus-5-5"];
+  return (usage.input_tokens * price.input + usage.output_tokens * price.output) / 1_000_000;
+}
+
+export async function generateItinerary(
+  ctx: TripContext,
+  current?: Itinerary,
+  change?: string,
+): Promise<{ itinerary: Itinerary; costUsd: number }> {
   const client = new Anthropic();
+  const model = aiModel();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: `Plan this trip:\n${describeTrip(ctx)}` },
   ];
@@ -94,21 +115,26 @@ export async function generateItinerary(ctx: TripContext, current?: Itinerary, c
   }
 
   const response = await client.beta.messages.parse({
-    model: "claude-opus-5-5",
+    model,
     max_tokens: 16000,
     system: systemPrompt(ctx.input.days),
     messages,
-    output_config: { effort: "medium", format: betaZodOutputFormat(ItinerarySchema) },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+    // Edits are smaller jobs than a fresh plan, so they run at lower effort to save tokens.
+    output_config: { effort: change ? "low" : "medium", format: betaZodOutputFormat(ItinerarySchema) },
+    ...(FALLBACK_MODELS.has(model) && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
   });
+
+  const costUsd = callCostUsd(response.model, response.usage);
+  console.log(
+    `[ai] ${change ? "edit" : "plan"} model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens} cost=$${costUsd.toFixed(4)}`,
+  );
 
   if (response.stop_reason === "refusal") throw new Error("The planner couldn't help with that request.");
   if (!response.parsed_output) throw new Error("The planner returned an incomplete itinerary. Please try again.");
-  return response.parsed_output;
+  return { itinerary: response.parsed_output, costUsd };
 }
 
-/** A simple itinerary built from our own data, used when no AI key is configured. */
+/** A simple itinerary built from our own data: used without an AI key, or once AI limits are reached. */
 export function templateItinerary({ input, destination: d }: TripContext): Itinerary {
   const acts = pickActivities(d, input);
   const food = d.foodPerDay[input.tier];
@@ -139,7 +165,7 @@ export function templateItinerary({ input, destination: d }: TripContext): Itine
   });
   return {
     title: `${input.days} days in ${d.name}`,
-    summary: "A basic plan from our destination data. Add an Anthropic API key to get a personalised itinerary you can edit by chatting.",
+    summary: "A starter plan built from our destination data.",
     stayRecommendation: { area: d.hotelCity, why: "Central and well connected." },
     days,
     foodTips: [],

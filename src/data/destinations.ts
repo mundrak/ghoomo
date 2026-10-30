@@ -15,6 +15,7 @@ const a = (name: string, cost: number, ...tags: Interest[]) => ({ name, cost, ta
 export const DESTINATIONS: Destination[] = [
   {
     id: "goa",
+    emoji: "🏖️",
     name: "Goa",
     country: "India",
     international: false,
@@ -41,6 +42,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "manali",
+    emoji: "🏔️",
     name: "Manali & Kasol",
     country: "India",
     international: false,
@@ -67,6 +69,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "rishikesh",
+    emoji: "🛶",
     name: "Rishikesh",
     country: "India",
     international: false,
@@ -93,6 +96,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "jaipur-udaipur",
+    emoji: "🏰",
     name: "Jaipur & Udaipur",
     country: "India",
     international: false,
@@ -119,6 +123,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "kerala",
+    emoji: "🌴",
     name: "Kerala (Kochi, Munnar, Alleppey)",
     country: "India",
     international: false,
@@ -144,6 +149,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "leh",
+    emoji: "🏍️",
     name: "Leh-Ladakh",
     country: "India",
     international: false,
@@ -168,6 +174,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "bali",
+    emoji: "🌺",
     name: "Bali",
     country: "Indonesia",
     international: true,
@@ -193,6 +200,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "thailand",
+    emoji: "🛕",
     name: "Bangkok & Phuket",
     country: "Thailand",
     international: true,
@@ -218,6 +226,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "vietnam",
+    emoji: "⛵",
     name: "Hanoi & Ha Long Bay",
     country: "Vietnam",
     international: true,
@@ -242,6 +251,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "dubai",
+    emoji: "🏙️",
     name: "Dubai",
     country: "UAE",
     international: true,
@@ -267,6 +277,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "sri-lanka",
+    emoji: "🐘",
     name: "Sri Lanka",
     country: "Sri Lanka",
     international: true,
@@ -291,6 +302,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "nepal",
+    emoji: "🪂",
     name: "Kathmandu & Pokhara",
     country: "Nepal",
     international: true,
@@ -316,6 +328,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "singapore",
+    emoji: "🌃",
     name: "Singapore",
     country: "Singapore",
     international: true,
@@ -340,6 +353,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "malaysia",
+    emoji: "🏝️",
     name: "Kuala Lumpur & Langkawi",
     country: "Malaysia",
     international: true,
@@ -365,6 +379,7 @@ export const DESTINATIONS: Destination[] = [
   },
   {
     id: "georgia",
+    emoji: "🍷",
     name: "Tbilisi & Kazbegi",
     country: "Georgia",
     international: true,

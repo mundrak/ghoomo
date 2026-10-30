@@ -48,6 +48,17 @@ export function presetBudget(tier: Tier, days: number): CategoryBudget {
 
 export const sumBudget = (b: CategoryBudget) => CATEGORIES.reduce((s, c) => s + b[c], 0);
 
+/** Per-person spend per day (excluding flights) for a tier, for showing in the UI. */
+export const tierPerDay = (tier: Tier) => Object.values(TIER_PRESETS[tier].perDay).reduce((s, x) => s + x, 0);
+
+/** Resize a budget to a new total, keeping each category's share. */
+export function scaleBudget(b: CategoryBudget, total: number): CategoryBudget {
+  const current = sumBudget(b) || 1;
+  const scaled = Object.fromEntries(CATEGORIES.map((c) => [c, roundTo((b[c] * total) / current)])) as CategoryBudget;
+  scaled.stay += total - sumBudget(scaled); // put the rounding remainder into stay
+  return scaled;
+}
+
 /** Per-person, per-night stay cost, accounting for how the group shares rooms. */
 export function stayPerPersonNight(d: Destination, input: Pick<TripInput, "stay" | "tier" | "travellers">) {
   const n = Math.max(input.travellers, 1);

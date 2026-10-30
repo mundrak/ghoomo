@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { DESTINATIONS } from "@/data/destinations";
 import { estimateCost, scoreDestination } from "@/lib/budget";
 import { quoteFlight } from "@/lib/providers/flights";
-import type { Suggestion, TripInput } from "@/lib/types";
+import type { Suggestion } from "@/lib/types";
+import { TripInputSchema } from "@/lib/validate";
 
 export async function POST(req: Request) {
-  const input = (await req.json()) as TripInput;
+  const parsed = TripInputSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: "Some trip details look wrong. Please check the form." }, { status: 400 });
+  const input = parsed.data;
 
   const candidates = DESTINATIONS.filter((d) =>
     input.scope === "india" ? !d.international : input.scope === "abroad" ? d.international : true,
