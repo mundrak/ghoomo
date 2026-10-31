@@ -27,7 +27,7 @@
 
   --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
   --font-script: "Archivo Variable", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", "Noto Sans Malayalam", "Noto Sans Thai",
-    "Noto Sans Arabic", "Noto Sans Sinhala", "Noto Sans Georgian", "Noto Sans Bengali", "Noto Sans Oriya", "Noto Sans Gurmukhi", sans-serif;
+    "Noto Sans Arabic", "Noto Sans Sinhala", "Noto Sans Georgian", "Noto Sans Bengali", "Noto Sans Oriya", "Noto Sans Gurmukhi", "Noto Sans Balinese", sans-serif;
 
   --animate-flip: flip 0.45s ease;
   --animate-open: open 0.3s ease;

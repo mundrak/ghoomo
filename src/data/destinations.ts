@@ -210,6 +210,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "bali",
     name: "Bali",
+    localName: "ᬩᬮᬶ",
+    localLang: "ban",
     country: "Indonesia",
     international: true,
     abroadRegion: "southeast-asia",
@@ -419,6 +421,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "malaysia",
     name: "Kuala Lumpur & Langkawi",
+    localName: "كوالا لومڤور",
+    localLang: "ms-Arab",
     country: "Malaysia",
     international: true,
     abroadRegion: "southeast-asia",
@@ -809,6 +813,8 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "shillong",
     name: "Shillong & Cherrapunji",
+    localName: "शिलांग",
+    localLang: "hi",
     country: "India",
     international: false,
     zone: "north-east",
