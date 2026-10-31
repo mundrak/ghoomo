@@ -1,3 +1,5 @@
+import { findOrigin } from "@/data/airports";
+import { nearness } from "./zones";
 import type {
   Activity,
   CategoryBudget,
@@ -158,6 +160,22 @@ export function scoreDestination(d: Destination, input: TripInput, cost: CostBre
   }
 
   if (d.international && input.days < 4) score -= 20;
+
+  // Nearby first: places in your own zone (or the one next door) rank higher, much more so on
+  // short trips, where a long journey eats the holiday. A 2-day trip from Kolkata should lead
+  // with Digha, Puri and the hills, not Goa.
+  const origin = findOrigin(input.origin);
+  if (origin && d.zone) {
+    const near = nearness(origin.zone, d.zone);
+    const short = input.days <= 3;
+    const medium = input.days <= 5;
+    score += {
+      same: short ? 30 : medium ? 15 : 6,
+      neighbour: short ? 12 : medium ? 6 : 2,
+      far: short ? -20 : medium ? -6 : 0,
+    }[near];
+    if (near === "same" && short && origin.zone === d.zone) reasons.push(`Close to ${origin.city}, good for a short trip`);
+  }
   if (input.party === "students" && d.stay.hostelBed <= 900) {
     reasons.push("Lots of student-friendly hostels");
     score += 5;

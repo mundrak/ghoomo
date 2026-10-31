@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { findOrigin } from "@/data/airports";
 import { DESTINATIONS } from "@/data/destinations";
 import { estimateCost, scoreDestination } from "@/lib/budget";
 import { identify, LIMITS, rateLimit, withVisitor } from "@/lib/limits";
 import { skyscannerUrl } from "@/lib/links";
-import { planTravel } from "@/lib/travel";
+import { distanceKm, planTravel } from "@/lib/travel";
 import { quoteTravel } from "@/lib/providers/flights";
 import type { Suggestion } from "@/lib/types";
 import { TripInputSchema } from "@/lib/validate";
@@ -21,8 +22,12 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Some trip details look wrong. Please check the form." }, { status: 400 });
   const input = parsed.data;
 
-  const candidates = DESTINATIONS.filter((d) =>
-    input.scope === "india" ? !d.international : input.scope === "abroad" ? d.international : true,
+  const origin = findOrigin(input.origin);
+  const candidates = DESTINATIONS.filter(
+    (d) =>
+      (input.scope === "india" ? !d.international : input.scope === "abroad" ? d.international : true) &&
+      // Don't suggest the city they're starting from (Varanasi from Varanasi).
+      !(origin && distanceKm(origin, d) < 25),
   );
 
   // Rank everything on estimates first, then fetch live fares for the shortlist only.
@@ -32,7 +37,7 @@ export async function POST(req: Request) {
       const cost = estimateCost(d, input, flight);
       return { d, flight, cost, ...scoreDestination(d, input, cost) };
     })
-    .sort((x, y) => y.fitScore - x.fitScore);
+    .sort((x, y) => y.fitScore - x.fitScore || x.cost.total - y.cost.total);
 
   const suggestions: Suggestion[] = await Promise.all(
     rough.map(async (r, i) => {
@@ -46,6 +51,6 @@ export async function POST(req: Request) {
     }),
   );
 
-  suggestions.sort((x, y) => y.fitScore - x.fitScore);
+  suggestions.sort((x, y) => y.fitScore - x.fitScore || x.cost.total - y.cost.total);
   return withVisitor(NextResponse.json({ suggestions }), visitor);
 }

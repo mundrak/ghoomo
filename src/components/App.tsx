@@ -228,7 +228,7 @@ export function App({ storage }: { storage: boolean }) {
     () =>
       suggestions
         ?.map((s) => ({ ...s, ...scoreDestination(s.destination, input, s.cost) }))
-        .sort((x, y) => y.fitScore - x.fitScore) ?? null,
+        .sort((x, y) => y.fitScore - x.fitScore || x.cost.total - y.cost.total) ?? null,
     [suggestions, input],
   );
 
