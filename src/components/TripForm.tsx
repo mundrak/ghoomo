@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, presetBudget, presetTravel, scaleBudget, sumBudget, TIER_INFO, tierPerDay } from "@/lib/budget";
 import type { Diet, Interest, PartyType, StayType, Tier, TripInput } from "@/lib/types";
@@ -81,6 +81,55 @@ function Slot({ children, control }: { children: ReactNode; control: ReactNode }
     </span>
   );
 }
+/**
+ * The budget in the sentence: an amount you can click and type over. It looks like the other
+ * underlined parts but has no dropdown arrow, because it isn't a list.
+ */
+function BudgetSlot({ total, onCommit }: { total: number; onCommit: (amount: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? total.toLocaleString("en-IN");
+  const commit = () => {
+    if (draft === null) return;
+    const n = Number(draft.replace(/[^\d]/g, ""));
+    if (n > 0) onCommit(Math.min(Math.max(Math.round(n / 100) * 100, MIN), MAX));
+    setDraft(null);
+  };
+  return (
+    <label className="inline-flex items-baseline whitespace-nowrap border-b-[3px] border-signal px-0.5 font-extrabold transition hover:bg-signal/25 focus-within:rounded-sm focus-within:bg-signal/40">
+      <span aria-hidden="true">₹</span>
+      {/* An invisible copy of the text sets the width, so the box always fits what's typed. */}
+      <span className="relative inline-block">
+        <span aria-hidden="true" className="invisible whitespace-pre tabular-nums">
+          {shown || "0"}
+        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label={`Budget per person in rupees, between ${inr(MIN)} and ${inr(MAX)}`}
+          value={shown}
+          className="absolute inset-0 w-full cursor-text bg-transparent p-0 font-extrabold tabular-nums text-ink outline-none focus-visible:outline-none"
+          onFocus={(e) => {
+            setDraft(String(total));
+            requestAnimationFrame(() => e.target.select());
+          }}
+          onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, "").slice(0, 7))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setDraft(null);
+              requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
+            }
+          }}
+        />
+      </span>
+      <svg viewBox="0 0 16 16" className="ml-1.5 h-[0.3em] w-[0.3em] self-center text-soft" aria-hidden="true">
+        <path d="M11 2.5 13.5 5 6 12.5 3 13l.5-3z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+    </label>
+  );
+}
+
 // The control is invisible but its dropdown is not: give it normal text size so the option list isn't headline-sized.
 const overlay = "peer absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none text-base font-normal tracking-normal opacity-0";
 
@@ -191,21 +240,10 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
           {value.days} days
         </Slot>
         , with{" "}
-        <Slot
-          control={
-            <button
-              type="button"
-              aria-label={`Budget ${inr(total)} per person. Change it with the slider`}
-              className={overlay}
-              onClick={() => sliderRef.current?.focus()}
-            />
-          }
-        >
-          {inr(total)}
-        </Slot>
+        <BudgetSlot total={total} onCommit={(amount) => set({ budget: scaleBudget(value.budget, amount) })} />
         {solo ? "." : " each."}
       </h1>
-      <p className="mt-3 text-[15px] text-soft">Change anything underlined. The board below updates as you go.</p>
+      <p className="mt-3 text-[15px] text-soft">Change anything underlined, or type a budget. The board below updates as you go.</p>
 
       <div className="mt-8 grid max-w-4xl gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr] sm:items-center">
         <div className="min-w-36">
