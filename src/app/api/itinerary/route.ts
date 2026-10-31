@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { findDestination } from "@/data/destinations";
-import { aiEnabled, generateItinerary, type Itinerary, type PlanProgress, PREMIUM_MODEL, STANDARD_MODEL, templateItinerary, wantsPremium } from "@/lib/itinerary";
+import { aiEnabled, generateItinerary, type Itinerary, generateItineraryIncremental, type IncrementalHandlers, PREMIUM_MODEL, STANDARD_MODEL, templateItinerary, wantsPremium } from "@/lib/itinerary";
 import { addPremiumSpend, allowance, cacheGet, cacheSet, identify, planCacheKey, premiumAvailable, recordUse, withVisitor, type Allowance } from "@/lib/limits";
 import { quoteTravel } from "@/lib/providers/flights";
 import { quoteStay } from "@/lib/providers/stays";
@@ -88,8 +88,12 @@ export async function POST(req: Request) {
   const premium = wantsPremium(body.input) && (await premiumAvailable());
   const model = premium ? PREMIUM_MODEL() : STANDARD_MODEL();
 
-  const run = async (onProgress?: (p: PlanProgress) => void) => {
-    const { itinerary, costUsd } = await generateItinerary(ctx, body.itinerary, body.change, model, onProgress);
+  // New plans are written in pieces (outline, then all days at once), which is much faster.
+  // Edits change a whole plan, so they stay one call.
+  const run = async (on?: IncrementalHandlers) => {
+    const { itinerary, costUsd } = isEdit
+      ? await generateItinerary(ctx, body.itinerary, body.change, model)
+      : await generateItineraryIncremental(ctx, model, on);
     await recordUse(visitor, isEdit ? "edit" : "plan", costUsd);
     if (premium) await addPremiumSpend(costUsd);
     if (!isEdit) await cacheSet(cacheKey, { itinerary, premium });
@@ -107,15 +111,21 @@ export async function POST(req: Request) {
     ...usage(left),
   });
 
-  // New plans stream when the browser asks: one JSON object per line, {"progress": …} while the
-  // plan is written, then {"done": …} with the same payload the plain response would have.
+  // New plans stream when the browser asks, one JSON object per line:
+  //   {"outline": {...}} as soon as the outline is ready, with flight and stay, so the page can show;
+  //   {"day": {...}} as each day is written, in whatever order they finish;
+  //   {"done": {...}} with the same payload the plain response would have.
   if (!isEdit && req.headers.get("accept")?.includes("application/x-ndjson")) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         try {
-          send({ done: await run((progress) => send({ progress })) });
+          const done = await run({
+            outline: (outline) => send({ outline: { outline, flight, stay, premium } }),
+            day: (day) => send({ day }),
+          });
+          send({ done });
         } catch (err) {
           console.error("[ai] call failed", err);
           send({ done: starter() });
