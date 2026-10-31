@@ -7,7 +7,7 @@ import { cautionFor } from "@/lib/budget";
 import { fareDateNote, travelMode } from "@/lib/travel";
 import type { FlightQuote, Suggestion, TripInput } from "@/lib/types";
 import { track } from "@/lib/track";
-import { nearness, ZONE_LABELS, ZONES, type Zone } from "@/lib/zones";
+import { ABROAD_REGION_LABELS, ABROAD_REGIONS, nearness, ZONE_LABELS, ZONES, type AbroadRegion, type Zone } from "@/lib/zones";
 import { Dot, LocalName, ModeIcon, PriceSource, primaryButton, Spinner, SplitBar } from "./ui";
 
 const FIRST_ROWS = 8;
@@ -52,7 +52,7 @@ export function Suggestions({
   const [open, setOpen] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   // Board filter: everything, places near the starting city, one zone, or abroad.
-  const [zone, setZone] = useState<"all" | "near" | "abroad" | Zone>("all");
+  const [zone, setZone] = useState<"all" | "near" | "abroad" | Zone | AbroadRegion>("all");
   // Remember which rows fitted last time, so a status that changes can flip like a departures board.
   const prevFit = useRef<Record<string, boolean>>({});
   const budget = sumBudget(input.budget);
@@ -64,10 +64,11 @@ export function Suggestions({
     const z = s.destination.zone;
     if (f === "all") return true;
     if (f === "abroad") return s.destination.international;
+    if ((ABROAD_REGIONS as readonly string[]).includes(f)) return s.destination.abroadRegion === f;
     if (f === "near") return Boolean(z && origin && nearness(origin.zone, z) === "same");
     return z === f;
   };
-  const filters = (["all", "near", ...ZONES, "abroad"] as const).filter((f) => f === "all" || all.some((s) => inFilter(s, f)));
+  const filters = (["all", "near", ...ZONES, "abroad", ...ABROAD_REGIONS] as const).filter((f) => f === "all" || all.some((s) => inFilter(s, f)));
   // If the current filter has nothing left (say, after switching to India only), fall back to everything.
   const active = filters.includes(zone) ? zone : "all";
   const rows = all.filter((s) => inFilter(s, active));
@@ -119,7 +120,15 @@ export function Suggestions({
                 active === f ? "border-signal bg-signal text-ink" : "border-board-line text-board-soft hover:border-board-soft hover:text-white"
               }`}
             >
-              {f === "all" ? "All" : f === "near" ? `Near ${city}` : f === "abroad" ? "Abroad" : ZONE_LABELS[f]}
+              {f === "all"
+                ? "All"
+                : f === "near"
+                  ? `Near ${city}`
+                  : f === "abroad"
+                    ? "All abroad"
+                    : f in ABROAD_REGION_LABELS
+                      ? ABROAD_REGION_LABELS[f as AbroadRegion]
+                      : ZONE_LABELS[f as Zone]}
             </button>
           ))}
         </div>

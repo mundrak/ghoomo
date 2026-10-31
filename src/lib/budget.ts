@@ -1,5 +1,6 @@
 import { findOrigin } from "@/data/airports";
-import { nearness } from "./zones";
+import { distanceKm } from "./travel";
+import { abroadNearnessPoints, nearness } from "./zones";
 import type {
   Activity,
   CategoryBudget,
@@ -175,6 +176,13 @@ export function scoreDestination(d: Destination, input: TripInput, cost: CostBre
       far: short ? -20 : medium ? -6 : 0,
     }[near];
     if (near === "same" && short && origin.zone === d.zone) reasons.push(`Close to ${origin.city}, good for a short trip`);
+  }
+  // Abroad, the same idea by real flying distance: Bangkok and Vietnam suit Kolkata, Dubai suits
+  // Mumbai and Ahmedabad, Sri Lanka suits the south.
+  if (origin && d.international) {
+    const km = distanceKm(origin, d);
+    score += abroadNearnessPoints(km, input.days);
+    if (km < 2000) reasons.push(`One of the shortest flights abroad from ${origin.city}`);
   }
   if (input.party === "students" && d.stay.hostelBed <= 900) {
     reasons.push("Lots of student-friendly hostels");

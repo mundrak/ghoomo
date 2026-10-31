@@ -80,3 +80,31 @@ export function nearness(from: Zone, to: Zone): Nearness {
   if (SAME_REGION.some(([a, b]) => (a === from && b === to) || (a === to && b === from))) return "same";
   return NEIGHBOURS[from].includes(to) ? "neighbour" : "far";
 }
+
+// ---------------------------------------------------------------------------
+// Abroad: grouped into regions for the board filters. Ranking uses real flying distance from the
+// starting city instead, because it varies far more than zones do: Bangkok is ~1,600 km from
+// Kolkata but ~3,000 km from Mumbai; Dubai is the other way round.
+
+export const ABROAD_REGIONS = ["neighbours", "southeast-asia", "west-asia"] as const;
+export type AbroadRegion = (typeof ABROAD_REGIONS)[number];
+
+export const ABROAD_REGION_LABELS: Record<AbroadRegion, string> = {
+  neighbours: "Nepal & Sri Lanka",
+  "southeast-asia": "Southeast Asia",
+  "west-asia": "Gulf & Caucasus",
+};
+
+/**
+ * Points for how close a place abroad is to the starting city, by flying distance in km.
+ * Matters most on short trips, where a long flight eats the holiday.
+ */
+export function abroadNearnessPoints(km: number, days: number) {
+  const short = days <= 3;
+  const medium = days <= 5;
+  if (km < 1000) return short ? 15 : medium ? 10 : 5;
+  if (km < 2000) return short ? 8 : medium ? 6 : 3;
+  if (km < 3000) return 0;
+  if (km < 4000) return short ? -8 : medium ? -4 : 0;
+  return short ? -15 : medium ? -8 : -3;
+}
