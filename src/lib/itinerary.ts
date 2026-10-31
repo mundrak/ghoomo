@@ -1,10 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { partialParse } from "@anthropic-ai/sdk/_vendor/partial-json-parser/parser";
 import { z } from "zod";
 import { cautionFor, estimateCost, inr, isVegDiet } from "./budget";
 import { travelMode } from "./travel";
 import type { Destination, FlightQuote, StayQuote, TripInput } from "./types";
+
+const ItemSchema = z.object({
+  time: z.string().describe('e.g. "Morning", "1:00 PM"'),
+  category: z.enum(["activities", "food", "transport"]),
+  title: z.string(),
+  details: z.string().describe("One or two sentences"),
+  costPerPerson: z.number().describe("INR per person; 0 if free"),
+});
 
 export const ItinerarySchema = z.object({
   title: z.string().describe("Short, like a headline: under 50 characters"),
@@ -17,15 +24,7 @@ export const ItinerarySchema = z.object({
     z.object({
       day: z.number().int(),
       title: z.string(),
-      items: z.array(
-        z.object({
-          time: z.string().describe('e.g. "Morning", "1:00 PM"'),
-          category: z.enum(["activities", "food", "transport"]),
-          title: z.string(),
-          details: z.string().describe("One or two sentences"),
-          costPerPerson: z.number().describe("INR per person; 0 if free"),
-        }),
-      ),
+      items: z.array(ItemSchema),
     }),
   ),
   foodTips: z.array(z.string()).describe("Up to 4 short tips"),
@@ -119,90 +118,142 @@ export function callCostUsd(model: string, usage: { input_tokens: number; output
   return (usage.input_tokens * price.input + usage.output_tokens * price.output) / 1_000_000;
 }
 
+type Effort = "low" | "medium";
+
+/** One structured call to the model. Returns the parsed result and what it cost. */
+async function ask<T extends z.ZodType>(
+  model: string,
+  schema: T,
+  system: string,
+  messages: Anthropic.Beta.BetaMessageParam[],
+  effort: Effort,
+  label: string,
+): Promise<{ parsed: z.infer<T>; costUsd: number }> {
+  const response = await new Anthropic().beta.messages.parse({
+    model,
+    max_tokens: 16000,
+    system,
+    messages,
+    output_config: { effort, format: betaZodOutputFormat(schema) },
+    ...(FALLBACK_MODELS.has(model) && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
+  });
+  const costUsd = callCostUsd(response.model, response.usage);
+  console.log(`[ai] ${label} model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens} cost=$${costUsd.toFixed(4)}`);
+  if (response.stop_reason === "refusal") throw new Error("The planner couldn't help with that request.");
+  if (!response.parsed_output) throw new Error("The planner returned an incomplete itinerary. Please try again.");
+  return { parsed: response.parsed_output as z.infer<T>, costUsd };
+}
+
+/** Writes or edits a whole plan in one call. Used for edits, the comparison page and pre-generated plans. */
 export async function generateItinerary(
   ctx: TripContext,
   current?: Itinerary,
   change?: string,
   /** The model to use (see STANDARD_MODEL and PREMIUM_MODEL). */
   model: string = STANDARD_MODEL(),
-  /** When given, the plan is streamed and this is called as the title and each day arrive. */
-  onProgress?: (p: PlanProgress) => void,
 ): Promise<{ itinerary: Itinerary; costUsd: number; model: string; seconds: number }> {
-  const client = new Anthropic();
   const started = Date.now();
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: `Plan this trip:\n${describeTrip(ctx)}` },
-  ];
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: `Plan this trip:\n${describeTrip(ctx)}` }];
   if (current && change) {
     messages.push(
       { role: "assistant", content: JSON.stringify(current) },
       { role: "user", content: `Update the itinerary: ${change}` },
     );
   }
+  // Edits are smaller jobs than a fresh plan, so they run at lower effort to save tokens.
+  const { parsed, costUsd } = await ask(model, ItinerarySchema, systemPrompt(ctx.input.days), messages, change ? "low" : "medium", change ? "edit" : "plan");
+  return { itinerary: parsed, costUsd, model, seconds: Math.round((Date.now() - started) / 1000) };
+}
 
-  const params = {
-    model,
-    max_tokens: 16000,
-    system: systemPrompt(ctx.input.days),
-    messages,
-    // Edits are smaller jobs than a fresh plan, so they run at lower effort to save tokens.
-    output_config: { effort: change ? ("low" as const) : ("medium" as const), format: betaZodOutputFormat(ItinerarySchema) },
-    ...(FALLBACK_MODELS.has(model) && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
-  };
+// ---------------------------------------------------------------------------
+// Faster new plans: a short outline first, then every day written at the same time.
 
-  let response;
-  if (onProgress) {
-    const stream = client.beta.messages.stream(params);
-    let text = "";
-    let sent = "";
-    stream.on("text", (delta) => {
-      text += delta;
-      const p = progressFrom(text);
-      const key = JSON.stringify(p);
-      if (p && key !== sent) {
-        sent = key;
-        onProgress(p);
+const OutlineSchema = ItinerarySchema.omit({ days: true }).extend({
+  days: z.array(
+    z.object({
+      day: z.number().int(),
+      title: z.string(),
+      plan: z
+        .string()
+        .describe("This day's main stops and activities in one sentence, specific enough that the day can be detailed on its own without repeating another day"),
+    }),
+  ),
+});
+export type Outline = z.infer<typeof OutlineSchema>;
+
+const DayItemsSchema = z.object({ items: z.array(ItemSchema) });
+
+const OUTLINE_RULES = `
+
+You are writing the OUTLINE only: the title, summary, where to stay, tips, and one line per day saying what that day covers. Each day will be detailed separately afterwards, so spread the best activities across the days without repeats, and keep the whole trip within budget.`;
+
+const DAY_RULES = `
+
+You are detailing ONE day of a trip that has already been outlined. Write only that day's items (meals included), following the outline for that day and not repeating what other days cover. Keep this day roughly within its share of the budget, unless the outline puts the trip's big activity on this day.`;
+
+export interface IncrementalHandlers {
+  /** The outline is ready: title, summary, stay, tips and each day's one-line plan. */
+  outline?: (outline: Outline) => void;
+  /** One day's items are ready. */
+  day?: (day: Itinerary["days"][number]) => void;
+}
+
+/**
+ * Writes a new plan in pieces so it can be shown sooner: an outline first (a few seconds), then
+ * every day in parallel. The total wait is roughly the outline plus the slowest single day, instead
+ * of one long call that writes every day in turn. Costs a little more in input tokens, because each
+ * day's call repeats the trip details.
+ */
+export async function generateItineraryIncremental(
+  ctx: TripContext,
+  model: string,
+  on: IncrementalHandlers = {},
+): Promise<{ itinerary: Itinerary; costUsd: number; model: string; seconds: number }> {
+  const started = Date.now();
+  const { input } = ctx;
+  const trip = describeTrip(ctx);
+  const system = systemPrompt(input.days);
+
+  const outline = await ask(model, OutlineSchema, system + OUTLINE_RULES, [{ role: "user", content: `Outline this trip:\n${trip}` }], "medium", "outline");
+  let costUsd = outline.costUsd;
+  // The model occasionally returns the wrong number of days; the trip length wins.
+  const plans = Array.from({ length: input.days }, (_, i) => {
+    const d = outline.parsed.days[i];
+    return { day: i + 1, title: d?.title ?? `Day ${i + 1}`, plan: d?.plan ?? "A free day to explore at your own pace." };
+  });
+  on.outline?.({ ...outline.parsed, days: plans });
+
+  const share = (n: number) => Math.round(n / input.days);
+  const dayBudget = { food: share(input.budget.food), activities: share(input.budget.activities), transport: share(input.budget.transport) };
+  const fallbackDays = () => templateItinerary(ctx).days;
+
+  const days = await Promise.all(
+    plans.map(async (p) => {
+      const content =
+        `The trip:\n${trip}\n\nThe outline, one line per day:\n${plans.map((x) => `Day ${x.day}: ${x.title}. ${x.plan}`).join("\n")}\n\n` +
+        `Write the items for day ${p.day} of ${input.days} ("${p.title}": ${p.plan}). ` +
+        `This day's rough share of the per-person budget in INR: food ${dayBudget.food}, activities ${dayBudget.activities}, local transport ${dayBudget.transport}.`;
+      // One retry; if a day still fails, it gets the starter plan's version of that day.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const r = await ask(model, DayItemsSchema, system + DAY_RULES, [{ role: "user", content }], "low", `day ${p.day}`);
+          costUsd += r.costUsd;
+          const day = { day: p.day, title: p.title, items: r.parsed.items };
+          on.day?.(day);
+          return day;
+        } catch (err) {
+          console.error(`[ai] day ${p.day} failed`, err);
+        }
       }
-    });
-    response = await stream.finalMessage();
-  } else {
-    response = await client.beta.messages.parse(params);
-  }
-
-  const costUsd = callCostUsd(response.model, response.usage);
-  console.log(
-    `[ai] ${change ? "edit" : "plan"} model=${response.model} in=${response.usage.input_tokens} out=${response.usage.output_tokens} cost=$${costUsd.toFixed(4)}`,
+      const day = { day: p.day, title: p.title, items: fallbackDays()[p.day - 1]?.items ?? [] };
+      on.day?.(day);
+      return day;
+    }),
   );
 
-  if (response.stop_reason === "refusal") throw new Error("The planner couldn't help with that request.");
-  if (!response.parsed_output) throw new Error("The planner returned an incomplete itinerary. Please try again.");
-  return { itinerary: response.parsed_output, costUsd, model: response.model, seconds: Math.round((Date.now() - started) / 1000) };
-}
-
-/** What the loading screen shows while a plan is being written: the title, then each day's title. */
-export interface PlanProgress {
-  title?: string;
-  days: string[];
-}
-
-/** Reads the half-written JSON so far. Only complete-looking titles are passed on. */
-function progressFrom(text: string): PlanProgress | null {
-  let raw: unknown;
-  try {
-    raw = partialParse(text);
-  } catch {
-    return null;
-  }
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as { title?: unknown; summary?: unknown; days?: unknown };
-  // The title is only final once the model has moved on to the summary.
-  const title = typeof r.title === "string" && r.summary !== undefined ? r.title : undefined;
-  const days = Array.isArray(r.days) ? r.days : [];
-  // A day's title is final once its items have started.
-  const dayTitles = days
-    .filter((d): d is { title: string; items: unknown } => !!d && typeof d === "object" && typeof d.title === "string" && "items" in d)
-    .map((d) => d.title);
-  return { title, days: dayTitles };
+  const { days: _outlineDays, ...rest } = outline.parsed;
+  void _outlineDays;
+  return { itinerary: { ...rest, days }, costUsd, model, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
 /** Activities for the full days: best interest matches first, but only what the activities budget covers. */

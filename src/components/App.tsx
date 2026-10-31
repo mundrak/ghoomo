@@ -10,7 +10,7 @@ import { LocalName, textLink } from "@/components/ui";
 import { findDestination } from "@/data/destinations";
 import { scaleBudget, scoreDestination } from "@/lib/budget";
 import { track } from "@/lib/track";
-import type { Itinerary, PlanProgress } from "@/lib/itinerary";
+import type { Itinerary, Outline } from "@/lib/itinerary";
 import type { Destination, FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
 
 interface Plan {
@@ -29,11 +29,18 @@ async function post<T>(url: string, body: unknown, signal?: AbortSignal): Promis
   return data as T;
 }
 
+interface StreamHandlers {
+  /** The outline is ready: show the plan page now, with the days still being written. */
+  outline: (o: { outline: Outline; flight: FlightQuote; stay: StayQuote; premium: boolean }) => void;
+  /** One day is ready. */
+  day: (day: Itinerary["days"][number]) => void;
+}
+
 /**
- * Asks for a new plan as a stream, so the loading screen can show each day as it's written.
+ * Asks for a new plan as a stream: the outline arrives in a few seconds, then each day as it's written.
  * Cached plans, starter plans and errors come back as ordinary JSON, which is handled too.
  */
-async function postPlan(body: unknown, onProgress: (p: PlanProgress) => void): Promise<PlanResponse> {
+async function postPlan(body: unknown, on: StreamHandlers): Promise<PlanResponse> {
   const res = await fetch("/api/itinerary", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson, application/json" },
@@ -54,9 +61,10 @@ async function postPlan(body: unknown, onProgress: (p: PlanProgress) => void): P
     buffer = lines.pop() ?? "";
     for (const line of lines) {
       if (!line.trim()) continue;
-      const msg = JSON.parse(line) as { progress?: PlanProgress; done?: PlanResponse };
+      const msg = JSON.parse(line) as { outline?: Parameters<StreamHandlers["outline"]>[0]; day?: Itinerary["days"][number]; done?: PlanResponse };
       if (msg.done) return msg.done;
-      if (msg.progress) onProgress(msg.progress);
+      if (msg.outline) on.outline(msg.outline);
+      if (msg.day) on.day(msg.day);
     }
   }
   throw new Error("The connection dropped while your plan was being written. Try again.");
@@ -88,17 +96,13 @@ const toPlan = (destinationId: string, { itinerary, flight, stay, ...meta }: Pla
 
 const PLANNING_LINES = ["Checking fares from your city", "Comparing stays for your group", "Matching days to your interests", "Doing the budget maths"];
 
-/**
- * Shown while a plan is written. The logo's route draws itself from where you are to where you're going.
- * With an AI plan, the title and each day appear on the board as the planner writes them.
- */
-function Planning({ d, days, progress }: { d: Destination; days: number; progress: PlanProgress | null }) {
+/** Shown until the plan's outline arrives. The logo's route draws itself from where you are to where you're going. */
+function Planning({ d }: { d: Destination }) {
   const [line, setLine] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setLine((l) => (l + 1) % PLANNING_LINES.length), 2200);
     return () => clearInterval(t);
   }, []);
-  const written = progress?.days ?? [];
   return (
     <div className="grid place-items-center rounded-2xl bg-board px-6 py-24 text-center text-white" role="status">
       <svg width="132" height="60" viewBox="0 0 44 22" aria-hidden="true">
@@ -107,20 +111,8 @@ function Planning({ d, days, progress }: { d: Destination; days: number; progres
         <circle cx="37" cy="8" r="3.6" stroke="#f4f4f1" strokeWidth="2" fill="none" />
       </svg>
       <LocalName d={d} className="mt-6 text-2xl text-signal" />
-      <h2 className="font-wide mt-1 text-3xl font-bold">{progress?.title ?? `Planning ${d.name}`}</h2>
-      <p className="mt-2 text-board-soft" aria-live="polite">
-        {progress?.title ? `Writing day ${Math.min(written.length + 1, days)} of ${days}` : PLANNING_LINES[line]}…
-      </p>
-      {written.length > 0 && (
-        <ol className="mt-8 w-full max-w-md divide-y divide-board-line overflow-hidden rounded-xl border border-board-line text-left">
-          {written.map((title, i) => (
-            <li key={i} className="animate-flip flex items-baseline gap-4 bg-board-raised px-4 py-3">
-              <span className="font-wide w-12 shrink-0 text-xs font-bold tracking-wider text-signal">DAY {i + 1}</span>
-              <span className="text-sm text-white">{title}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <h2 className="font-wide mt-1 text-3xl font-bold">Planning {d.name}</h2>
+      <p className="mt-2 text-board-soft">{PLANNING_LINES[line]}…</p>
     </div>
   );
 }
@@ -149,7 +141,8 @@ export function App({ storage }: { storage: boolean }) {
   const [loadingBoard, setLoadingBoard] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planning, setPlanning] = useState<string | null>(null);
-  const [progress, setProgress] = useState<PlanProgress | null>(null);
+  // Which plan request is current, so a stream from a plan the user has left can't bring it back.
+  const request = useRef(0);
   const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const firstLoad = useRef(true);
@@ -268,17 +261,51 @@ export function App({ storage }: { storage: boolean }) {
     setError(null);
     track("plan_requested");
     window.scrollTo({ top: 0 });
+    const id = ++request.current;
+    const destinationId = s.destination.id;
     try {
-      const res = await postPlan({ input, destinationId: s.destination.id, flight: s.flight }, setProgress);
+      const res = await postPlan(
+        { input, destinationId, flight: s.flight },
+        {
+          outline: ({ outline, flight, stay, premium }) => {
+            if (request.current !== id) return;
+            const { days, ...rest } = outline;
+            setPlan({
+              destinationId,
+              itinerary: { ...rest, days: days.map(({ day, title }) => ({ day, title, items: [] })) },
+              flight,
+              stay,
+              meta: { ai: true, premium, aiAvailable: true, pending: Object.fromEntries(days.map((d) => [d.day, d.plan])) },
+            });
+            setPlanning(null);
+          },
+          day: (day) => {
+            if (request.current !== id) return;
+            setPlan((p) => {
+              if (!p || p.destinationId !== destinationId) return p;
+              const pending = { ...p.meta.pending };
+              delete pending[day.day];
+              return {
+                ...p,
+                itinerary: { ...p.itinerary, days: p.itinerary.days.map((d) => (d.day === day.day ? day : d)) },
+                meta: { ...p.meta, pending },
+              };
+            });
+          },
+        },
+      );
+      if (request.current !== id) return;
       const next = toPlan(s.destination.id, res);
       setPlan(next);
       track("plan_shown");
       void save(next, input);
     } catch (e) {
+      if (request.current !== id) return;
+      // Don't leave a half-written plan on screen.
+      setPlan((p) => (p?.meta.pending && Object.keys(p.meta.pending).length ? null : p));
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPlanning(null);
-      setProgress(null);
     }
   };
 
@@ -300,6 +327,7 @@ export function App({ storage }: { storage: boolean }) {
   };
 
   const backToBoard = () => {
+    request.current++;
     setPlan(null);
     setTripId(null);
     setLink({ trip: null });
@@ -340,7 +368,7 @@ export function App({ storage }: { storage: boolean }) {
         )}
 
         {planningDest ? (
-          <Planning d={planningDest} days={input.days} progress={progress} />
+          <Planning d={planningDest} />
         ) : plan && destination ? (
           <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={refining} shareUrl={shareUrl} siteUrl={origin} />
         ) : (

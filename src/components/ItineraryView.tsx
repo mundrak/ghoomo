@@ -19,6 +19,8 @@ export interface PlanMeta {
   /** Written by the premium model (luxury, Jain and vegan trips). */
   premium?: boolean;
   aiAvailable: boolean;
+  /** Days still being written, by day number, with the outline's one-line plan for each. */
+  pending?: Record<number, string>;
   notice?: string;
   plansLeft?: number;
   editsLeft?: number;
@@ -60,7 +62,8 @@ export function ItineraryView({
   const spent = planned(itinerary, flight, stay, input.days);
   const total = CATEGORIES.reduce((s, c) => s + spent[c], 0);
   const budgetTotal = CATEGORIES.reduce((s, c) => s + input.budget[c], 0);
-  const canEdit = meta.aiAvailable && (meta.editsLeft ?? 1) > 0;
+  const writing = Object.keys(meta.pending ?? {}).length > 0;
+  const canEdit = meta.aiAvailable && (meta.editsLeft ?? 1) > 0 && !writing;
   const city = ORIGIN_AIRPORTS.find((a) => a.code === input.origin)?.city ?? input.origin;
   const mode = travelMode(flight);
   const ground = mode === "train" || mode === "bus";
@@ -187,6 +190,29 @@ export function ItineraryView({
 
           <ol className={`${panel} divide-y-[1.5px] divide-line`}>
             {itinerary.days.map((day) => {
+              const pendingPlan = meta.pending?.[day.day];
+              if (pendingPlan !== undefined) {
+                return (
+                  <li key={day.day} className="grid gap-x-6 gap-y-3 p-5 sm:grid-cols-[120px_minmax(0,1fr)] sm:p-6" aria-busy="true">
+                    <div>
+                      <div className="font-wide text-lg font-extrabold">Day {day.day}</div>
+                      <div className="text-sm text-soft">{dateOf(day.day - 1)}</div>
+                    </div>
+                    <div>
+                      <h3 className="mb-1 text-lg font-bold">{day.title}</h3>
+                      <p className="text-[15px] text-soft">{pendingPlan}</p>
+                      <div className="mt-4 space-y-2.5" aria-hidden="true">
+                        {[85, 70, 78].map((w) => (
+                          <div key={w} className="h-3.5 animate-pulse rounded bg-line" style={{ width: `${w}%` }} />
+                        ))}
+                      </div>
+                      <p className="mt-3 inline-flex items-center gap-2 text-sm text-soft">
+                        <Spinner /> Writing this day
+                      </p>
+                    </div>
+                  </li>
+                );
+              }
               const dayCost = day.items.reduce((s, x) => s + x.costPerPerson, 0);
               // Starter plans name the day after its main activity, so don't print it twice.
               const showTitle = !day.items.some((x) => x.title === day.title);
@@ -284,7 +310,9 @@ export function ItineraryView({
                 <h2 className="font-bold">Change the plan</h2>
                 {meta.editsLeft !== undefined && <span className="text-xs text-soft">{meta.editsLeft} edits left today</span>}
               </div>
-              {!canEdit ? (
+              {writing ? (
+                <p className="mt-2 text-sm text-soft">You can ask for changes once every day is written.</p>
+              ) : !canEdit ? (
                 <p className="mt-2 text-sm text-soft">You&apos;ve used today&apos;s free edits. More tomorrow.</p>
               ) : (
                 <>

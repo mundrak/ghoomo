@@ -4,7 +4,7 @@ import type { Destination, StayQuote, TripInput } from "../types";
 
 // Live hotel rates come from LiteAPI (bookable inventory, free sandbox key at
 // liteapi.travel). Hostels and Airbnbs have no open API, so for those we use
-// estimates and send the user to Hostelworld / Airbnb with the search filled in.
+// estimates and send the user to Booking.com (filtered to hostels) / Airbnb with the search filled in.
 
 interface LiteRate {
   name: string;

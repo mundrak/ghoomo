@@ -23,7 +23,11 @@ export function stayUrl(input: TripInput, d: Destination) {
   const city = encodeURIComponent(d.hotelCity);
   switch (input.stay) {
     case "hostel":
-      return `https://www.hostelworld.com/search?search_keywords=${city}&dateFrom=${checkin}&dateTo=${checkout}&number_of_guests=${input.travellers}`;
+      // Booking.com's search filtered to hostels (ht_id=203). Hostelworld's search links didn't open reliably.
+      return (
+        `https://www.booking.com/searchresults.html?ss=${city}&checkin=${checkin}&checkout=${checkout}` +
+        `&group_adults=${input.travellers}&no_rooms=1&selected_currency=INR&nflt=ht_id%3D203`
+      );
     case "airbnb":
       return `https://www.airbnb.co.in/s/${city}/homes?checkin=${checkin}&checkout=${checkout}&adults=${input.travellers}`;
     case "hotel":

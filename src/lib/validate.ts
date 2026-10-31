@@ -37,7 +37,7 @@ const BOOKING_HOSTS = new Set([
   "www.aviasales.com",
   "aviasales.com",
   "www.skyscanner.co.in",
-  "www.hostelworld.com",
+  "www.hostelworld.com", // kept so trips saved before the switch to Booking.com still open
   "www.airbnb.co.in",
   "www.booking.com",
   "www.irctc.co.in",

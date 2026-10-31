@@ -25,7 +25,7 @@ Without any keys the app still works end to end, using estimates and a basic iti
 |---|---|---|
 | Flights | [Travelpayouts](https://www.travelpayouts.com) Aviasales Data API: recently seen fares in INR, with a link to book | Rough fare estimate + Skyscanner search link |
 | Hotels | [LiteAPI](https://www.liteapi.travel): live, bookable hotel rates | Per-destination estimate + Booking.com search link |
-| Hostels / Airbnb | No open API. Estimates + Hostelworld / Airbnb search links, pre-filled with your dates and group size | — |
+| Hostels / Airbnb | No open API. Estimates + Booking.com (hostels filter) / Airbnb search links, pre-filled with your dates and group size | — |
 | Itinerary | Claude (Anthropic API), structured JSON output | Template itinerary; editing by chat turned off |
 
 Each price is labelled **Live price** or **Estimate** in the UI.
@@ -42,7 +42,7 @@ AI itineraries are the only cost that grows with users. The app limits it:
 - **Daily spend cap:** total AI spend stops at $2/day by default (worst case ~$60/month). After that, everyone gets starter plans until the next day.
 - **Cache:** identical trip requests share one AI plan for 7 days.
 - **Pre-generated plans:** `/pregenerate` (needs `STATS_KEY`) writes Haiku plans for the trip the form starts with, from every city to every destination, for the coming month or two (about 550 plans, under $2). Visitors who pick a destination without changing those settings get a plan instantly. Run it once a month.
-- **Streaming:** new AI plans stream to the browser, so the loading screen shows the title and each day as they're written.
+- **Faster new plans:** a new AI plan is written in pieces: a short outline first (a few seconds), then every day at the same time. The plan page opens as soon as the outline is ready and each day fills in as it's done. This costs a bit more in input tokens than one big call (each day's call repeats the trip details): about +50% per Opus plan, negligible on Haiku. Edits are still one call.
 - **Two models:** most trips are planned by Haiku 5.5 (`AI_STANDARD_MODEL`). Luxury, Jain and vegan trips get Opus 5.5 (`AI_PREMIUM_MODEL`), labelled "Planned by premium AI", up to $1/day (`AI_PREMIUM_DAILY_BUDGET_USD`). After that they fall back to Haiku for the day. Haiku is about 40× cheaper than Opus; in testing it missed Jain food rules (it suggested momos and aloo dishes), which is why those trips go to Opus.
 
 All limits are environment variables (see `.env.example`). For them to hold on Vercel, connect a free Upstash Redis database: in the Vercel project, open **Storage → Create Database → Upstash (Redis)** and connect it to the project. Vercel adds the connection variables, and the app picks them up automatically.
