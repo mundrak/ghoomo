@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ORIGIN_AIRPORTS } from "@/data/airports";
+import { findOrigin } from "@/data/airports";
 import { CATEGORIES, CATEGORY_LABELS, inr, sumBudget } from "@/lib/budget";
 import { cautionFor } from "@/lib/budget";
 import { fareDateNote, travelMode } from "@/lib/travel";
 import type { FlightQuote, Suggestion, TripInput } from "@/lib/types";
 import { track } from "@/lib/track";
+import { ABROAD_REGION_LABELS, ABROAD_REGIONS, nearness, ZONE_LABELS, ZONES, type AbroadRegion, type Zone } from "@/lib/zones";
 import { Dot, LocalName, ModeIcon, PriceSource, primaryButton, Spinner, SplitBar } from "./ui";
 
 const FIRST_ROWS = 8;
@@ -50,12 +51,27 @@ export function Suggestions({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Board filter: everything, places near the starting city, one zone, or abroad.
+  const [zone, setZone] = useState<"all" | "near" | "abroad" | Zone | AbroadRegion>("all");
   // Remember which rows fitted last time, so a status that changes can flip like a departures board.
   const prevFit = useRef<Record<string, boolean>>({});
   const budget = sumBudget(input.budget);
-  const city = ORIGIN_AIRPORTS.find((a) => a.code === input.origin)?.city ?? input.origin;
+  const origin = findOrigin(input.origin);
+  const city = origin?.city ?? input.origin;
 
-  const rows = suggestions ?? [];
+  const all = suggestions ?? [];
+  const inFilter = (s: Suggestion, f: typeof zone) => {
+    const z = s.destination.zone;
+    if (f === "all") return true;
+    if (f === "abroad") return s.destination.international;
+    if ((ABROAD_REGIONS as readonly string[]).includes(f)) return s.destination.abroadRegion === f;
+    if (f === "near") return Boolean(z && origin && nearness(origin.zone, z) === "same");
+    return z === f;
+  };
+  const filters = (["all", "near", ...ZONES, "abroad", ...ABROAD_REGIONS] as const).filter((f) => f === "all" || all.some((s) => inFilter(s, f)));
+  // If the current filter has nothing left (say, after switching to India only), fall back to everything.
+  const active = filters.includes(zone) ? zone : "all";
+  const rows = all.filter((s) => inFilter(s, active));
   const visible = showAll ? rows : rows.slice(0, FIRST_ROWS);
   // Costs don't depend on the budget, so fit is worked out here and updates the moment the slider moves.
   const fits = (s: Suggestion) => s.cost.total <= budget;
@@ -88,6 +104,35 @@ export function Suggestions({
           ) : null}
         </p>
       </div>
+
+      {all.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-5 pb-4 sm:px-7" role="group" aria-label="Filter by region">
+          {filters.map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={active === f}
+              onClick={() => {
+                setZone(f);
+                setShowAll(false);
+              }}
+              className={`rounded-full border px-3 py-1 text-[13px] font-semibold transition ${
+                active === f ? "border-signal bg-signal text-ink" : "border-board-line text-board-soft hover:border-board-soft hover:text-white"
+              }`}
+            >
+              {f === "all"
+                ? "All"
+                : f === "near"
+                  ? `Near ${city}`
+                  : f === "abroad"
+                    ? "All abroad"
+                    : f in ABROAD_REGION_LABELS
+                      ? ABROAD_REGION_LABELS[f as AbroadRegion]
+                      : ZONE_LABELS[f as Zone]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         className="hidden grid-cols-[minmax(0,2.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 border-b border-board-line px-7 pb-2.5 text-[13px] text-board-soft md:grid"
@@ -129,6 +174,7 @@ export function Suggestions({
                   <LocalName d={d} className="text-[21px] leading-snug text-signal" />
                   <span className="font-wide text-lg font-bold">{d.name}</span>
                   {d.international && d.country !== d.name && <span className="text-sm text-board-soft">{d.country}</span>}
+                  {d.zone && <span className="text-sm text-board-soft">{ZONE_LABELS[d.zone]}</span>}
                   {cautionFor(d, input.startDate) && <span className="text-sm font-semibold text-short">Off season</span>}
                 </span>
                 <span className={`order-3 flex items-center gap-2 text-[15px] text-[#d6dde7] md:order-none ${status.fits ? "" : "opacity-60"}`}>

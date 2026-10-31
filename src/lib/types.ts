@@ -1,3 +1,4 @@
+import type { AbroadRegion, Zone } from "./zones";
 export type Tier = "budget" | "comfort" | "luxury";
 export type PartyType = "solo" | "couple" | "students" | "group";
 export type StayType = "hostel" | "hotel" | "airbnb";
@@ -50,6 +51,10 @@ export interface Destination {
   localLang?: string;
   country: string;
   international: boolean;
+  /** Zone within India, for ranking nearby places first. Not set for places abroad. */
+  zone?: Zone;
+  /** For places abroad: which region they're in, for the board filters. */
+  abroadRegion?: AbroadRegion;
   airport: string;
   /** How to get from the airport to the destination, if it isn't right there. */
   arrivalNote?: string;

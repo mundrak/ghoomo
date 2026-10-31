@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type ReactNode } from "react";
 import { ORIGIN_AIRPORTS } from "@/data/airports";
+import { ZONE_LABELS, ZONES } from "@/lib/zones";
 import { CATEGORIES, CATEGORY_LABELS, inr, presetBudget, presetTravel, scaleBudget, sumBudget, TIER_INFO, tierPerDay } from "@/lib/budget";
 import type { Diet, Interest, PartyType, StayType, Tier, TripInput } from "@/lib/types";
 import { Chip, Dot, Segmented, SplitBar } from "./ui";
@@ -184,10 +185,16 @@ export function TripForm({ value, onChange }: { value: TripInput; onChange: (nex
         <Slot
           control={
             <select aria-label="Leaving from" className={overlay} value={value.origin} onChange={(e) => set({ origin: e.target.value })}>
-              {ORIGIN_AIRPORTS.map((a) => (
-                <option key={a.code} value={a.code}>
-                  {a.city}
-                </option>
+              {ZONES.map((z) => (
+                <optgroup key={z} label={ZONE_LABELS[z]}>
+                  {ORIGIN_AIRPORTS.filter((a) => a.zone === z)
+                    .sort((x, y) => x.city.localeCompare(y.city))
+                    .map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {a.city}
+                      </option>
+                    ))}
+                </optgroup>
               ))}
             </select>
           }

@@ -12,6 +12,9 @@ import "@fontsource/noto-sans-thai/600.css";
 import "@fontsource/noto-sans-arabic/600.css";
 import "@fontsource/noto-sans-sinhala/600.css";
 import "@fontsource/noto-sans-georgian/600.css";
+import "@fontsource/noto-sans-bengali/600.css";
+import "@fontsource/noto-sans-oriya/600.css";
+import "@fontsource/noto-sans-gurmukhi/600.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
