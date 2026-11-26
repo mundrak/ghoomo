@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GroupCheckin } from "@/components/GroupCheckin";
 import { ItineraryView, type PlanMeta } from "@/components/ItineraryView";
 import { Logo } from "@/components/Logo";
-import { Suggestions } from "@/components/Suggestions";
+import { IndiaMap } from "@/components/IndiaMap";
+import { BoardStatus, Suggestions } from "@/components/Suggestions";
 import { defaultTrip, TripForm } from "@/components/TripForm";
-import { LocalName, textLink } from "@/components/ui";
+import { LocalName, StatusPill, textLink, ThemeToggle } from "@/components/ui";
+import { findOrigin } from "@/data/airports";
 import { findDestination } from "@/data/destinations";
-import { scaleBudget, scoreDestination } from "@/lib/budget";
+import { scaleBudget, scoreDestination, sumBudget } from "@/lib/budget";
 import { track } from "@/lib/track";
 import type { Itinerary, Outline } from "@/lib/itinerary";
 import type { Destination, FlightQuote, StayQuote, Suggestion, TripInput } from "@/lib/types";
@@ -96,23 +98,25 @@ const toPlan = (destinationId: string, { itinerary, flight, stay, ...meta }: Pla
 
 const PLANNING_LINES = ["Checking fares from your city", "Comparing stays for your group", "Matching days to your interests", "Doing the budget maths"];
 
-/** Shown until the plan's outline arrives. The logo's route draws itself from where you are to where you're going. */
-function Planning({ d }: { d: Destination }) {
+/** Shown until the plan's outline arrives: the route draws itself on the map, from where you are to where you're going. */
+function Planning({ d, from }: { d: Destination; from: { lat: number; lon: number; city: string } | undefined }) {
   const [line, setLine] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setLine((l) => (l + 1) % PLANNING_LINES.length), 2200);
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="grid place-items-center rounded-2xl bg-board px-6 py-24 text-center text-white" role="status">
-      <svg width="132" height="60" viewBox="0 0 44 22" aria-hidden="true">
-        <circle cx="6" cy="15" r="4" fill="#f4f4f1" />
-        <path d="M13 11 Q22 0 32 7" stroke="var(--color-signal)" strokeWidth="2" strokeLinecap="round" fill="none" pathLength={1} strokeDasharray="1" className="animate-draw" />
-        <circle cx="37" cy="8" r="3.6" stroke="#f4f4f1" strokeWidth="2" fill="none" />
-      </svg>
-      <LocalName d={d} className="mt-6 text-2xl text-signal" />
-      <h2 className="font-wide mt-1 text-3xl font-bold">Planning {d.name}</h2>
-      <p className="mt-2 text-board-soft">{PLANNING_LINES[line]}…</p>
+    <div className="flex flex-col gap-10" role="status">
+      <header className="flex flex-col gap-3.5">
+        <LocalName d={d} className="text-lg text-faint" />
+        <h1 className="text-[clamp(32px,7vw,48px)] font-semibold leading-[1.05] tracking-[-0.035em]">Planning {d.name}</h1>
+        <StatusPill>{PLANNING_LINES[line]}…</StatusPill>
+      </header>
+      {from && (
+        <div className="max-w-[360px]">
+          <IndiaMap origin={from} places={[{ id: d.id, name: d.name, lat: d.lat, lon: d.lon, fits: true }]} activeId={d.id} drawing label={`Route from ${from.city} to ${d.name}`} />
+        </div>
+      )}
     </div>
   );
 }
@@ -346,54 +350,73 @@ export function App({ storage }: { storage: boolean }) {
   const planningDest = planning ? findDestination(planning) : undefined;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-line">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-          <button onClick={backToBoard} aria-label="ghoomo, back to the board">
-            <Logo />
-          </button>
+    // One calm column on phones and tablets (like the portfolio's focus page); on larger screens the
+    // page spreads into columns, with the controls and the map pinned while the list scrolls.
+    <div className="mx-auto flex min-h-screen w-full max-w-[720px] flex-col gap-12 px-5 pb-12 pt-[clamp(24px,5vh,48px)] sm:px-6 lg:max-w-[1480px] lg:px-10">
+      <div className="flex items-center justify-between gap-3">
+        <button onClick={backToBoard} aria-label="ghoomo, back to the start">
+          <Logo />
+        </button>
+        <div className="flex items-center gap-2">
           {plan && (
-            <button onClick={backToBoard} className={`${textLink} text-sm`}>
-              Back to the board
+            <button onClick={backToBoard} className="rounded-full bg-row px-3.5 text-[13px] font-medium leading-[34px] text-soft transition-colors hover:text-ink">
+              ← all places
             </button>
           )}
+          <ThemeToggle />
         </div>
-      </header>
+      </div>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
+      <main className="flex-1">
         {error && (
-          <div role="alert" className="mb-6 rounded-xl border-[1.5px] border-short-ink/30 bg-white px-5 py-4 text-ink">
+          <div role="alert" className="mb-10 rounded-[10px] bg-row px-4 py-3 text-ink">
             {error}
           </div>
         )}
 
         {planningDest ? (
-          <Planning d={planningDest} />
+          <div className="mx-auto max-w-[720px] @container">
+            <Planning d={planningDest} from={findOrigin(input.origin)} />
+          </div>
         ) : plan && destination ? (
           <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={refining} shareUrl={shareUrl} siteUrl={origin} />
         ) : (
-          <div className="space-y-12">
-            <TripForm value={input} onChange={setInput} />
-            <Suggestions input={input} suggestions={ranked} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
-            {storage && <GroupCheckin groupId={groupId} onGroup={openGroup} travellers={input.travellers} onUse={applyGroupBudget} />}
+          <div className="grid gap-12 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] xl:gap-16">
+            {/* The trip and budget stay in view (scrolling on their own if fine-tune is open) while the places scroll. */}
+            <div className="@container lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:self-start lg:overflow-y-auto lg:pb-6 lg:[scrollbar-width:thin]">
+              <TripForm value={input} onChange={setInput} status={<BoardStatus suggestions={ranked} budget={sumBudget(input.budget)} loading={loadingBoard} />} />
+            </div>
+            <div className="flex min-w-0 flex-col gap-12">
+              <Suggestions input={input} suggestions={ranked} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
+              {storage && (
+                <div className="@container">
+                  <GroupCheckin groupId={groupId} onGroup={openGroup} travellers={input.travellers} onUse={applyGroupBudget} />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-soft sm:px-8">
-          <p>
+      <footer className="flex flex-col gap-2 border-t border-line pt-5 text-[13px] text-faint">
+        <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+          <span>
             A side project by{" "}
-            <a href="https://mundrak.github.io" target="_blank" rel="noopener noreferrer" className="font-semibold text-ink hover:underline">
+            <a href="https://mundrak.github.io/focus/" target="_blank" rel="noopener noreferrer" className="text-soft transition-colors hover:text-ink">
               khushi
             </a>
             .
-          </p>
-          <p>Prices marked &ldquo;estimate&rdquo; are approximate. Check before you book.</p>
-          <p className="w-full text-xs">
-            ghoomo counts visits and clicks anonymously and keeps one cookie to share free AI plans fairly. No accounts, no personal details.
-          </p>
+          </span>
+          <span>Prices marked &ldquo;estimate&rdquo; are approximate. Check before you book.</span>
         </div>
+        <p className="text-xs">
+          ghoomo counts visits and clicks anonymously and keeps one cookie to share free AI plans fairly. No accounts, no personal details. Map
+          outline from{" "}
+          <a href="https://github.com/VictorCazanave/svg-maps" target="_blank" rel="noopener noreferrer" className={textLink}>
+            svg-maps
+          </a>{" "}
+          by Victor Cazanave, CC BY 4.0, simplified.
+        </p>
       </footer>
     </div>
   );

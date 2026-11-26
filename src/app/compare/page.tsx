@@ -68,7 +68,7 @@ export default function ComparePage() {
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
       <Logo />
-      <h1 className="font-wide mt-8 text-3xl font-bold">Compare AI models</h1>
+      <h1 className="mt-8 text-3xl font-semibold">Compare AI models</h1>
       <p className="mt-2 max-w-3xl text-soft">
         Runs the same five trips through Opus, Sonnet and Haiku. Read the plans side by side and pick the cheapest model whose plans you&apos;d
         happily send to a friend. A full run costs roughly $0.80 and counts toward the daily AI cap.
@@ -91,8 +91,8 @@ export default function ComparePage() {
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
         {totals.map((t) => (
-          <div key={t.id} className="rounded-xl border-[1.5px] border-line bg-white p-4">
-            <div className="font-bold">{t.label}</div>
+          <div key={t.id} className="rounded-[10px] bg-row p-4">
+            <div className="font-semibold">{t.label}</div>
             <div className="mt-1 text-sm text-soft">
               {t.count} of {COMPARE_TRIPS.length} done · ${t.cost.toFixed(3)} total · {t.count ? `$${(t.cost / t.count).toFixed(3)} (${inr((t.cost / t.count) * 88)}) per plan` : "–"} · {t.seconds}s average
             </div>
@@ -102,20 +102,20 @@ export default function ComparePage() {
 
       {COMPARE_TRIPS.map((trip, t) => (
         <section key={trip.label} className="mt-10">
-          <h2 className="text-lg font-bold">{trip.label}</h2>
+          <h2 className="text-lg font-semibold">{trip.label}</h2>
           <div className="mt-3 grid gap-3 lg:grid-cols-3">
             {MODELS.map((m) => {
               const c = cells[id(t, m.id)] ?? { state: "idle" };
               const k = id(t, m.id);
               return (
-                <div key={m.id} className="rounded-xl border-[1.5px] border-line bg-white p-4 text-sm">
+                <div key={m.id} className="rounded-[10px] bg-row p-4 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold">{m.label}</span>
+                    <span className="font-semibold">{m.label}</span>
                     <button type="button" disabled={!key || c.state === "running"} onClick={() => void run(t, m.id)} className="text-soft underline disabled:no-underline">
                       {c.state === "running" ? <Spinner /> : c.state === "done" ? "Run again" : "Run"}
                     </button>
                   </div>
-                  {c.state === "error" && <p className="mt-2 font-semibold text-short-ink">{c.message}</p>}
+                  {c.state === "error" && <p className="mt-2 font-semibold text-ink">{c.message}</p>}
                   {c.state === "done" && (
                     <Plan r={c.r} expanded={open === k} onToggle={() => setOpen(open === k ? null : k)} />
                   )}
@@ -138,7 +138,7 @@ function Plan({ r, expanded, onToggle }: { r: Result; expanded: boolean; onToggl
     <div className="mt-2 space-y-2">
       <p className="text-soft">
         ${r.costUsd.toFixed(3)} · {r.seconds}s · {inr(total)} of {inr(budget)}{" "}
-        {over.length ? <span className="font-semibold text-short-ink">over on {over.map((c) => CATEGORY_LABELS[c].toLowerCase()).join(", ")}</span> : <span className="font-semibold text-go-ink">within budget</span>}
+        {over.length ? <span className="font-semibold text-ink">over on {over.map((c) => CATEGORY_LABELS[c].toLowerCase()).join(", ")}</span> : <span className="font-semibold text-soft">within budget</span>}
       </p>
       <p className="font-semibold">{r.itinerary.title}</p>
       <p>{r.itinerary.summary}</p>
@@ -172,7 +172,7 @@ function Plan({ r, expanded, onToggle }: { r: Result; expanded: boolean; onToggl
           ))}
         </>
       )}
-      <button type="button" onClick={onToggle} className="font-semibold underline decoration-signal decoration-2 underline-offset-4">
+      <button type="button" onClick={onToggle} className="font-semibold underline decoration-line decoration-2 underline-offset-4">
         {expanded ? "Show less" : "Show every item and tip"}
       </button>
     </div>

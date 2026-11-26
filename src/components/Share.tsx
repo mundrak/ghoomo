@@ -24,7 +24,7 @@ export function CopyButton({ text, label, onCopy }: { text: string; label: strin
       >
         {state === "copied" ? "Copied" : label}
       </button>
-      {state === "failed" && <input readOnly value={text} onFocus={(e) => e.currentTarget.select()} className="w-full rounded-lg border-[1.5px] border-line bg-white px-3 py-2 text-sm" aria-label="Link to copy" />}
+      {state === "failed" && <input readOnly value={text} onFocus={(e) => e.currentTarget.select()} className="w-full rounded-[10px] bg-row px-3 py-2 text-sm" aria-label="Link to copy" />}
     </>
   );
 }
