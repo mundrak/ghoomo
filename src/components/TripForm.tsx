@@ -153,9 +153,9 @@ export function TripForm({ value, onChange, status }: { value: TripInput; onChan
     .join(", ");
 
   return (
-    <div className="flex flex-col gap-16">
+    <div className="flex flex-col gap-12">
       <header className="flex flex-col gap-3.5">
-      <h1 className="text-[clamp(26px,6vw,40px)] font-semibold leading-[1.35] tracking-[-0.03em] text-ink">
+      <h1 className="text-[clamp(26px,8.5cqi,40px)] font-semibold leading-[1.35] tracking-[-0.03em] text-ink">
         {!solo && "We're "}
         <Slot
           control={
@@ -255,7 +255,7 @@ export function TripForm({ value, onChange, status }: { value: TripInput; onChan
       {status}
       </header>
 
-      <div className="flex flex-col gap-12">
+      <div className="flex flex-col gap-10">
         <Sec label="budget">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-[22px] font-semibold tabular-nums tracking-[-0.02em]">{inr(total)}</span>

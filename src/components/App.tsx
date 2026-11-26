@@ -350,7 +350,9 @@ export function App({ storage }: { storage: boolean }) {
   const planningDest = planning ? findDestination(planning) : undefined;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[720px] flex-col gap-14 px-5 pb-12 pt-[clamp(28px,7vh,64px)] sm:px-6">
+    // One calm column on phones and tablets (like the portfolio's focus page); on larger screens the
+    // page spreads into columns, with the controls and the map pinned while the list scrolls.
+    <div className="mx-auto flex min-h-screen w-full max-w-[720px] flex-col gap-12 px-5 pb-12 pt-[clamp(24px,5vh,48px)] sm:px-6 lg:max-w-[1480px] lg:px-10">
       <div className="flex items-center justify-between gap-3">
         <button onClick={backToBoard} aria-label="ghoomo, back to the start">
           <Logo />
@@ -373,14 +375,25 @@ export function App({ storage }: { storage: boolean }) {
         )}
 
         {planningDest ? (
-          <Planning d={planningDest} from={findOrigin(input.origin)} />
+          <div className="mx-auto max-w-[720px] @container">
+            <Planning d={planningDest} from={findOrigin(input.origin)} />
+          </div>
         ) : plan && destination ? (
           <ItineraryView input={input} destination={destination} {...plan} onChange={refine} busy={refining} shareUrl={shareUrl} siteUrl={origin} />
         ) : (
-          <div className="flex flex-col gap-12">
-            <TripForm value={input} onChange={setInput} status={<BoardStatus suggestions={ranked} budget={sumBudget(input.budget)} loading={loadingBoard} />} />
-            <Suggestions input={input} suggestions={ranked} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
-            {storage && <GroupCheckin groupId={groupId} onGroup={openGroup} travellers={input.travellers} onUse={applyGroupBudget} />}
+          <div className="grid gap-12 lg:grid-cols-[minmax(300px,360px)_minmax(0,1fr)] xl:gap-16">
+            {/* The trip and budget stay in view (scrolling on their own if fine-tune is open) while the places scroll. */}
+            <div className="@container lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:self-start lg:overflow-y-auto lg:pb-6 lg:[scrollbar-width:thin]">
+              <TripForm value={input} onChange={setInput} status={<BoardStatus suggestions={ranked} budget={sumBudget(input.budget)} loading={loadingBoard} />} />
+            </div>
+            <div className="flex min-w-0 flex-col gap-12">
+              <Suggestions input={input} suggestions={ranked} loading={loadingBoard} onPick={pick} busyId={planning ?? undefined} />
+              {storage && (
+                <div className="@container">
+                  <GroupCheckin groupId={groupId} onGroup={openGroup} travellers={input.travellers} onUse={applyGroupBudget} />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

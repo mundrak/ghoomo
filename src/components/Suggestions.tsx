@@ -138,21 +138,18 @@ export function Suggestions({
     );
 
   return (
-    <div className="flex flex-col gap-12">
-      {/* On narrower screens the map sits above the list. On wide ones it moves beside it (below). */}
+    <div className="grid gap-12 xl:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] xl:gap-12">
+      {/* Above the list on smaller screens; on wide ones a pinned column of its own, so hovering a row always shows its route. */}
       {origin && (
-        <Sec label="map" className="xl:hidden">
-          <div className="max-w-[440px]">{map(4)}</div>
-        </Sec>
+        <aside className="@container xl:sticky xl:top-8 xl:col-start-2 xl:row-start-1 xl:self-start" aria-label="Map">
+          <Sec label="map">
+            {/* Smaller when it sits above the list, so the places still show without scrolling. */}
+            <div className="max-w-[440px] lg:max-w-[320px] xl:max-w-none">{map(3)}</div>
+          </Sec>
+        </aside>
       )}
 
-      <div className="relative">
-        {/* Wide screens: the map rides along in the margin, so hovering a row always shows its route. */}
-        {origin && (
-          <aside className="absolute left-full top-0 ml-12 hidden h-full w-[min(280px,calc(50vw-420px))] xl:block" aria-label="Map">
-            <div className="sticky top-8">{map(0)}</div>
-          </aside>
-        )}
+      <div className="@container min-w-0 xl:col-start-1 xl:row-start-1">
       <Sec label="places" id="places">
         {all.length > 0 && (
           <div className="-mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none]" role="group" aria-label="Filter by region">

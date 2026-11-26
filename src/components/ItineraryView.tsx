@@ -99,37 +99,40 @@ export function ItineraryView({
   ).filter(([, tips]) => tips.length > 0);
 
   return (
-    <div className="flex flex-col gap-14">
-      <header className="flex flex-col gap-3.5">
-        <LocalName d={d} className="text-lg text-faint" />
-        <h1 className="text-[clamp(32px,7vw,48px)] font-semibold leading-[1.05] tracking-[-0.035em]">{itinerary.title}</h1>
-        <p className="text-[clamp(16px,3.2vw,18px)] leading-relaxed tracking-[-0.01em] text-soft">{itinerary.summary}</p>
-        <StatusPill live={writing}>
-          {writing
-            ? `Writing ${pendingCount} more day${pendingCount > 1 ? "s" : ""}…`
-            : meta.ai
-              ? meta.premium
-                ? "Planned by premium AI"
-                : "Planned by AI"
-              : "Starter plan"}
-        </StatusPill>
-        <dl className="mt-1 flex flex-wrap gap-x-7 gap-y-2">
-          {[
-            ["from", city],
-            ["leaving", dateOf(0)],
-            ["trip", `${input.days} days`],
-            ["travellers", input.travellers === 1 ? "Just you" : `${input.travellers} people`],
-            ["style", TIER_INFO[input.tier].label],
-          ].map(([k, v]) => (
-            <div key={k}>
-              <dt className="font-mono text-[11px] text-faint">{k}</dt>
-              <dd className="text-sm">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </header>
+    // Phones: one column. Larger screens: overview on the left, the days in the middle, and (on the
+    // widest) the budget and edit box pinned on the right. The 1fr row soaks up spare height, so the
+    // left column's groups sit flush under each other.
+    <div className="grid gap-12 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:grid-rows-[auto_auto_1fr] lg:gap-x-12 xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(260px,300px)] xl:grid-rows-[auto_1fr] xl:gap-x-16">
+      <div className="@container flex flex-col gap-12 lg:col-start-1 lg:row-start-1 lg:self-start">
+        <header className="flex flex-col gap-3.5">
+          <LocalName d={d} className="text-lg text-faint" />
+          <h1 className="text-[clamp(30px,11cqi,48px)] font-semibold leading-[1.05] tracking-[-0.035em]">{itinerary.title}</h1>
+          <p className="text-[clamp(16px,3.2vw,18px)] leading-relaxed tracking-[-0.01em] text-soft">{itinerary.summary}</p>
+          <StatusPill live={writing}>
+            {writing
+              ? `Writing ${pendingCount} more day${pendingCount > 1 ? "s" : ""}…`
+              : meta.ai
+                ? meta.premium
+                  ? "Planned by premium AI"
+                  : "Planned by AI"
+                : "Starter plan"}
+          </StatusPill>
+          <dl className="mt-1 flex flex-wrap gap-x-7 gap-y-2">
+            {[
+              ["from", city],
+              ["leaving", dateOf(0)],
+              ["trip", `${input.days} days`],
+              ["travellers", input.travellers === 1 ? "Just you" : `${input.travellers} people`],
+              ["style", TIER_INFO[input.tier].label],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <dt className="font-mono text-[11px] text-faint">{k}</dt>
+                <dd className="text-sm">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </header>
 
-      <div className="flex flex-col gap-12">
         {from && (
           <Sec label="route">
             <div className="max-w-[300px]">
@@ -217,12 +220,19 @@ export function ItineraryView({
             </a>
           </div>
         </Sec>
+      </div>
 
+      <div className="@container flex min-w-0 flex-col gap-12 lg:col-start-2 lg:row-span-3 lg:row-start-1 xl:row-span-2">
         {itinerary.days.map((day) => {
+          const dayCost = day.items.reduce((sum, x) => sum + x.costPerPerson, 0);
+          const written = meta.pending?.[day.day] === undefined;
           const label = (
             <>
               day {String(day.day).padStart(2, "0")}
-              <span className="block text-faint/80">{dateOf(day.day - 1).toLowerCase()}</span>
+              <span className="block text-faint/80">
+                {dateOf(day.day - 1).toLowerCase()}
+                {written && ` · ${inr(dayCost)}`}
+              </span>
             </>
           );
           const pendingPlan = meta.pending?.[day.day];
@@ -244,16 +254,12 @@ export function ItineraryView({
               </Sec>
             );
           }
-          const dayCost = day.items.reduce((sum, x) => sum + x.costPerPerson, 0);
           // Starter plans name the day after its main activity, so don't print it twice.
           const showTitle = !day.items.some((x) => x.title === day.title);
           return (
             <Sec key={day.day} label={label}>
-              <div className="flex items-baseline justify-between gap-4 pt-2">
-                {showTitle ? <h3 className="font-medium">{day.title}</h3> : <span />}
-                <span className="font-mono text-xs tabular-nums text-faint">{inr(dayCost)}</span>
-              </div>
-              <ul className={`${rowsClass} mt-1`}>
+              {showTitle && <h3 className="pt-2 font-medium">{day.title}</h3>}
+              <ul className={`${rowsClass} ${showTitle ? "mt-1" : ""}`}>
                 {day.items.map((item, i) => (
                   <li key={i} className={rowClass}>
                     <span className="inline-flex min-w-0 items-baseline gap-2.5">
@@ -273,7 +279,9 @@ export function ItineraryView({
             </Sec>
           );
         })}
+      </div>
 
+      <div className="@container flex flex-col gap-12 lg:col-start-1 lg:row-start-2 lg:self-start xl:sticky xl:top-8 xl:col-start-3 xl:row-span-2 xl:row-start-1">
         <Sec label="budget">
           <div className="pt-1.5">
             <p className="flex flex-wrap items-baseline gap-x-2">
@@ -363,7 +371,9 @@ export function ItineraryView({
             </div>
           </Sec>
         )}
+      </div>
 
+      <div className="@container flex flex-col gap-12 lg:col-start-1 lg:row-start-3 lg:self-start xl:row-start-2">
         {tipSections.map(([title, tips]) => (
           <Sec key={title} label={title}>
             <ul className="space-y-1.5 pt-2 text-[15px]">
@@ -376,7 +386,6 @@ export function ItineraryView({
             </ul>
           </Sec>
         ))}
-
         <PlanFeedback key={itinerary.title + itinerary.days.length} />
       </div>
     </div>

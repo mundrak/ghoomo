@@ -27,11 +27,14 @@ export function LocalName({ d, className = "" }: { d: Destination; className?: s
   );
 }
 
-/** A section of the page: a small mono label on the left, its rows on the right. Stacks on phones. */
+/**
+ * A section of the page: a small mono label on the left, its rows on the right. Sized by the column it
+ * sits in (a CSS container), so in a narrow column, or on a phone, the label stacks above the rows.
+ */
 export function Sec({ label, children, id, className = "" }: { label: ReactNode; children: ReactNode; id?: string; className?: string }) {
   return (
-    <section id={id} className={`grid gap-x-6 gap-y-1.5 sm:grid-cols-[104px_minmax(0,1fr)] ${className}`}>
-      <h2 className="font-mono text-xs font-normal text-faint sm:pt-2.5">{label}</h2>
+    <section id={id} className={`grid gap-x-6 gap-y-1.5 @xl:grid-cols-[104px_minmax(0,1fr)] ${className}`}>
+      <h2 className="font-mono text-xs font-normal text-faint @xl:pt-2.5">{label}</h2>
       <div className="min-w-0">{children}</div>
     </section>
   );
