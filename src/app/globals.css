@@ -1,110 +1,137 @@
 @import "tailwindcss";
 
 /*
-  ghoomo's own look: airport and railway wayfinding, kept quiet.
-  Paper and charcoal ink, one signal yellow (the colour of station boards and airport signs),
-  and a dark departures board for results. Archivo throughout; place names also appear in
-  their local script, set in Noto.
+  ghoomo's look follows the focus version of khushi.'s portfolio (mundrak.github.io/focus):
+  calm and monochrome, Instrument Sans with small Space Mono labels, a narrow centred column of
+  "label | rows" sections, and quiet grey pills. Light and dark themes share these tokens.
+  Place names also appear in their local script, set in Noto.
 */
-@theme {
-  --color-paper: #f4f4f1;
-  --color-ink: #1c2430;
-  --color-soft: #566070;
-  --color-line: #dadcd6;
-  --color-board: #1c2430;
-  --color-board-raised: #262f3c;
-  --color-board-line: #344052;
-  --color-board-soft: #9aa6b6;
-  --color-signal: #ffc72c;
-  --color-go: #3fb27f;
-  --color-go-ink: #1f7a52;
-  --color-short: #f0a35e;
-  --color-short-ink: #a4511a;
-  --color-cat-stay: #4c7bd9;
-  --color-cat-food: #e0a21b;
-  --color-cat-activities: #3fb27f;
-  --color-cat-transport: #9aa6b6;
+:root {
+  --bg: #eeeeec;
+  --row: #e2e2df;
+  --line: #d3d3cf;
+  --ink: #0d0d0d;
+  --soft: #3b3b3a;
+  --faint: #666664;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0c0c;
+    --row: #171717;
+    --line: #262626;
+    --ink: #f2f2f2;
+    --soft: #a8a8a8;
+    --faint: #7a7a7a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0c0c;
+  --row: #171717;
+  --line: #262626;
+  --ink: #f2f2f2;
+  --soft: #a8a8a8;
+  --faint: #7a7a7a;
+  color-scheme: dark;
+}
 
-  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-script: "Archivo Variable", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", "Noto Sans Malayalam", "Noto Sans Thai",
+@theme inline {
+  --color-bg: var(--bg);
+  --color-row: var(--row);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  /* Budget categories as shades of ink, so the split reads without colour. */
+  --color-cat-flights: var(--ink);
+  --color-cat-stay: color-mix(in srgb, var(--ink) 68%, var(--bg));
+  --color-cat-food: color-mix(in srgb, var(--ink) 48%, var(--bg));
+  --color-cat-activities: color-mix(in srgb, var(--ink) 32%, var(--bg));
+  --color-cat-transport: color-mix(in srgb, var(--ink) 18%, var(--bg));
+
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, Menlo, monospace;
+  --font-script: "Instrument Sans Variable", "Noto Sans Devanagari", "Noto Sans Kannada", "Noto Sans Tamil", "Noto Sans Malayalam", "Noto Sans Thai",
     "Noto Sans Arabic", "Noto Sans Sinhala", "Noto Sans Georgian", "Noto Sans Bengali", "Noto Sans Oriya", "Noto Sans Gurmukhi", "Noto Sans Balinese", sans-serif;
 
-  --animate-flip: flip 0.45s ease;
-  --animate-open: open 0.3s ease;
-  --animate-draw: draw 1.2s ease-in-out infinite;
+  --animate-open: open 0.25s ease;
+  --animate-draw: draw 1.6s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2.4s ease-out infinite;
 
-  @keyframes flip {
-    0% {
-      transform: rotateX(90deg);
-      opacity: 0;
-    }
-    100% {
-      transform: rotateX(0);
-      opacity: 1;
-    }
-  }
   @keyframes open {
     from {
       opacity: 0;
-      transform: translateY(-6px);
+      transform: translateY(-4px);
     }
   }
   @keyframes draw {
     0% {
       stroke-dashoffset: 1;
     }
-    60%,
+    70%,
     100% {
       stroke-dashoffset: 0;
     }
   }
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--ink) 40%, transparent);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 7px transparent;
+    }
+  }
 }
 
+html,
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--bg);
+}
+body {
+  color: var(--ink);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: var(--color-signal);
-  color: var(--color-ink);
+  background: var(--ink);
+  color: var(--bg);
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-signal);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
-/* Wider, signage-like headings. */
-.font-wide {
-  font-stretch: 112%;
-}
-
-/* Budget slider: thin ink track, signal-yellow thumb. */
+/* Thin slider: a hairline track that fills with ink, and a small round thumb. */
 input[type="range"].track {
   -webkit-appearance: none;
   appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--color-ink) var(--fill, 30%), var(--color-line) var(--fill, 30%));
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--ink) var(--fill, 30%), var(--line) var(--fill, 30%));
+  cursor: pointer;
 }
 input[type="range"].track::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--color-signal);
-  border: 3px solid var(--color-ink);
+  background: var(--bg);
+  border: 1.5px solid var(--ink);
   cursor: grab;
 }
 input[type="range"].track::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--color-signal);
-  border: 3px solid var(--color-ink);
+  background: var(--bg);
+  border: 1.5px solid var(--ink);
   cursor: grab;
 }
 

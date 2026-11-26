@@ -65,7 +65,7 @@ export default function PregeneratePage() {
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 sm:px-8">
       <Logo />
-      <h1 className="font-wide mt-8 text-3xl font-bold">Pre-generate plans</h1>
+      <h1 className="mt-8 text-3xl font-semibold">Pre-generate plans</h1>
       <p className="mt-2 max-w-2xl text-soft">
         Writes an AI plan for the trip the form starts with (5 students, 5 days, budget, hostel, no interests picked) from every city to
         every destination, for {MONTHS.map(monthName).join(" and ")}. That&apos;s up to {total} plans with the standard model, about $
@@ -89,8 +89,8 @@ export default function PregeneratePage() {
 
       {MONTHS.map((month) => (
         <section key={month} className="mt-8">
-          <h2 className="font-wide text-lg font-bold">{monthName(month)}</h2>
-          <ul className="mt-3 divide-y divide-line rounded-xl border border-line bg-white">
+          <h2 className="text-lg font-semibold">{monthName(month)}</h2>
+          <ul className="mt-3 divide-y divide-line rounded-xl border border-line bg-row">
             {ORIGIN_AIRPORTS.map((a) => {
               const row = rows[id(a.code, month)] ?? { state: "idle" };
               return (
@@ -105,7 +105,7 @@ export default function PregeneratePage() {
                     )}
                     {row.state === "done" &&
                       `${row.r.made} new, ${row.r.skipped} already there${row.r.failed ? `, ${row.r.failed} failed` : ""} · $${row.r.costUsd.toFixed(3)}`}
-                    {row.state === "error" && <span className="text-short-ink">{row.message}</span>}
+                    {row.state === "error" && <span className="text-ink">{row.message}</span>}
                   </span>
                   {row.state === "done" && row.r.failed > 0 && (
                     <details className="w-full text-xs text-soft">

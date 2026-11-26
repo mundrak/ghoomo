@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/budget";
 import { track } from "@/lib/track";
 import { CopyButton, WhatsAppLink } from "./Share";
-import { inputClass, primaryButton, secondaryButton, Spinner, textLink } from "./ui";
+import { inputClass, primaryButton, Sec, secondaryButton, Spinner, textLink } from "./ui";
 
 interface GroupStatus {
   size: number;
@@ -24,12 +24,12 @@ async function call(url: string, body?: unknown): Promise<{ id?: string; status:
 const parseAmount = (text: string) => Number(text.replace(/[^\d]/g, ""));
 
 function Seat({ filled, label }: { filled: boolean; label: string }) {
-  const dash = filled ? undefined : "4 4";
+  const dash = filled ? undefined : "2 3";
   return (
-    <div className="flex flex-col items-center gap-1.5 text-xs text-soft">
-      <svg width="40" height="44" viewBox="0 0 46 50" aria-hidden="true">
-        <rect x="6" y="2" width="34" height="34" rx="8" fill={filled ? "var(--color-ink)" : "none"} stroke="var(--color-ink)" strokeWidth="2" strokeDasharray={dash} />
-        <rect x="2" y="30" width="42" height="14" rx="5" fill={filled ? "var(--color-signal)" : "none"} stroke="var(--color-ink)" strokeWidth="2" strokeDasharray={dash} />
+    <div className="flex flex-col items-center gap-1.5 font-mono text-[11px] text-faint">
+      <svg width="34" height="37" viewBox="0 0 46 50" aria-hidden="true">
+        <rect x="7" y="3" width="32" height="30" rx="8" fill={filled ? "var(--ink)" : "none"} stroke="var(--ink)" strokeWidth="1.4" strokeDasharray={dash} />
+        <rect x="3" y="31" width="40" height="13" rx="5" fill="none" stroke="var(--ink)" strokeWidth="1.4" strokeDasharray={dash} />
       </svg>
       {label}
     </div>
@@ -105,12 +105,11 @@ export function GroupCheckin({
   const full = status !== null && status.mine === null && status.count >= status.size;
 
   return (
-    <section aria-labelledby="checkin-title" className="grid gap-8 border-t border-line pt-10 md:grid-cols-[1.1fr_1fr]">
+    <Sec label="group">
+      <div className="flex flex-col gap-8">
       <div>
-        <h2 id="checkin-title" className="font-wide text-2xl font-bold sm:text-3xl">
-          Group check-in
-        </h2>
-        <p className="mt-2 max-w-[48ch] text-soft">
+        <h3 className="font-medium">Group check-in</h3>
+        <p className="mt-0.5 max-w-[52ch] text-sm text-soft">
           Not sure what everyone can spend? Share one link. Each friend adds their limit privately, and ghoomo plans to the lowest one without
           showing whose it was.
         </p>
@@ -125,8 +124,8 @@ export function GroupCheckin({
             }}
           >
             {!groupId && (
-              <label className="block text-sm font-semibold text-soft">
-                How many of you
+              <label className="block font-mono text-xs text-faint">
+                how many of you
                 <select value={size} onChange={(e) => setSize(Number(e.target.value))} className={`${inputClass} mt-1 w-28`}>
                   {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
                     <option key={n} value={n}>
@@ -136,8 +135,8 @@ export function GroupCheckin({
                 </select>
               </label>
             )}
-            <label className="block text-sm font-semibold text-soft">
-              {groupId ? "What you can spend, all in" : "What you can spend (only you see this)"}
+            <label className="block font-mono text-xs text-faint">
+              {groupId ? "what you can spend, all in" : "what you can spend (only you see it)"}
               <input
                 inputMode="numeric"
                 placeholder="₹8,000"
@@ -156,14 +155,14 @@ export function GroupCheckin({
           </form>
         )}
         {error && (
-          <p role="alert" className="mt-3 text-sm font-semibold text-short-ink">
+          <p role="alert" className="mt-3 text-sm font-medium text-ink">
             {error}
           </p>
         )}
 
         {link && (
           <div className="mt-6 space-y-2">
-            <p className="text-sm font-semibold text-soft">Send this to the group</p>
+            <p className="font-mono text-xs text-faint">send this to the group</p>
             <div className="flex flex-wrap gap-2">
               <CopyButton text={link} label="Copy check-in link" onCopy={() => track("copy_link")} />
               <WhatsAppLink
@@ -195,16 +194,16 @@ export function GroupCheckin({
                 </>
               )}
             </p>
-            {full && <p className="mt-2 text-sm font-semibold">Everyone in this group has already added theirs.</p>}
-            <div className="mt-5 rounded-xl border-[1.5px] border-line bg-white p-5">
+            {full && <p className="mt-2 text-sm font-medium">Everyone in this group has already added theirs.</p>}
+            <div className="mt-5 rounded-[10px] bg-row p-4">
               {status.lowest !== null ? (
                 <>
                   <p>
-                    Plan to <span className="text-2xl font-extrabold tabular-nums">{inr(status.lowest)}</span> each. That&apos;s the lowest limit in
+                    Plan to <span className="text-[22px] font-semibold tabular-nums tracking-[-0.02em]">{inr(status.lowest)}</span> each. That&apos;s the lowest limit in
                     the group, and nobody sees whose it was.
                   </p>
                   <button type="button" onClick={() => onUse(status.lowest!, status.size)} className={`${secondaryButton} mt-3`}>
-                    Use {inr(status.lowest)} on the board
+                    Use {inr(status.lowest)} as our budget
                   </button>
                 </>
               ) : (
@@ -222,13 +221,14 @@ export function GroupCheckin({
         ) : groupId ? (
           <p className="text-soft">Loading the group…</p>
         ) : (
-          <div className="flex flex-wrap gap-3 opacity-60" aria-hidden="true">
+          <div className="flex flex-wrap gap-3 opacity-50" aria-hidden="true">
             {Array.from({ length: Math.min(size, 8) }, (_, i) => (
               <Seat key={i} filled={false} label="Waiting" />
             ))}
           </div>
         )}
       </div>
-    </section>
+      </div>
+    </Sec>
   );
 }

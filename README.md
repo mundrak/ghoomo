@@ -56,6 +56,12 @@ To check what's switched on, open `/api/status` on the live site. It shows wheth
 
 Full numbers, suggested settings and how the app can pay for itself: [docs/ECONOMICS.md](docs/ECONOMICS.md).
 
+## Look and feel
+
+ghoomo follows the focus version of [khushi.'s portfolio](https://mundrak.github.io/focus/): monochrome, Instrument Sans with small Space Mono labels, a narrow column of "label | rows" sections, and a light/dark switch (it starts from the device's setting and remembers the choice). The colours live as CSS variables in `src/app/globals.css`.
+
+The India map is a thin-line drawing of the country's outer boundary, traced and simplified from "Map of India" by Victor Cazanave ([svg-maps](https://github.com/VictorCazanave/svg-maps), CC BY 4.0), which follows India's official boundary. Places are positioned with a Mercator projection fitted to that drawing (`src/lib/geo.ts`). The credit is in the site's footer; keep it if you change the map.
+
 ## Code map
 
 - `src/data/destinations.ts`: the 15 starter destinations, with cost estimates, seasons, visa notes for Indian passports and a vegetarian-friendliness score
@@ -65,7 +71,8 @@ Full numbers, suggested settings and how the app can pay for itself: [docs/ECONO
 - `src/lib/limits.ts`: per-visitor limits, daily spend cap and itinerary cache
 - `src/lib/validate.ts`: checks and size limits on incoming requests
 - `src/app/api/suggest`, `src/app/api/itinerary`: the two endpoints
-- `src/components/`: step-by-step trip form, suggestion cards, itinerary + budget tracker
+- `src/components/`: sentence-style trip form, places list, India map (`IndiaMap.tsx`), itinerary + budget tracker
+- `src/data/indiaOutline.ts`, `src/lib/geo.ts`: the map outline and where places sit on it
 
 ## Ideas for next
 - Save and share trips with the group, plus split-the-bill per person
